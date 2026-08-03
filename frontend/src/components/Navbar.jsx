@@ -8,7 +8,7 @@ export default function Navbar({ isConnected, user, onOpenAuth, onLogout, onOpen
         {/* Left: Logo */}
         <div className="flex items-center gap-2.5">
           <Car className="w-5 h-5 text-white" />
-          <span className="text-sm font-semibold text-white">ParkSense</span>
+          <span className="text-sm font-semibold text-white">Smart Parking</span>
           <span className={`ml-1 w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
         </div>
 

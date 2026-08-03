@@ -281,7 +281,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-neutral-900 py-5 text-center text-[11px] text-neutral-600">
-        ParkSense · IoT Smart Parking System
+        Smart Parking · IoT Smart Parking System
       </footer>
     </div>
   );
