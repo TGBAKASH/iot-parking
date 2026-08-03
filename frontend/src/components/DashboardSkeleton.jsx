@@ -1,16 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { Search, Compass } from 'lucide-react';
 import ParkingCardSkeleton from './ParkingCardSkeleton';
-import { Search, MapPin, SlidersHorizontal, RefreshCw, Compass, ArrowUpDown } from 'lucide-react';
 
-/**
- * DashboardSkeleton Component (Clean Modern Design + Sort Options)
- * Features:
- * - Sort options dropdown (Nearest, Most Available, Lowest Occupancy, Alphabetical)
- * - City search input
- * - GPS location detection button
- */
 export default function DashboardSkeleton({
-  parkings,
+  parkings = [],
   selectedParking,
   onSelectParking,
   searchCity,
@@ -21,123 +14,93 @@ export default function DashboardSkeleton({
   onOpenSlotsInspector,
   onOpenReserve,
   loading,
-  nearestParkingId,
+  nearestParkingId
 }) {
-  const [sortBy, setSortBy] = useState('nearest');
+  const [sortBy, setSortBy] = useState('Nearest');
 
-  // Sort parking locations based on selected option
-  const sortedParkings = [...parkings].sort((a, b) => {
-    if (sortBy === 'nearest') {
-      const distA = a.rawDistanceMeters !== undefined ? a.rawDistanceMeters : Infinity;
-      const distB = b.rawDistanceMeters !== undefined ? b.rawDistanceMeters : Infinity;
-      return distA - distB;
+  const sortedParkings = useMemo(() => {
+    let sorted = [...parkings];
+    if (sortBy === 'Nearest') {
+      sorted.sort((a, b) => (a.rawDistanceMeters || 0) - (b.rawDistanceMeters || 0));
+    } else if (sortBy === 'Most Available') {
+      sorted.sort((a, b) => (b.available_slots || 0) - (a.available_slots || 0));
+    } else if (sortBy === 'Lowest Occupancy') {
+      sorted.sort((a, b) => {
+        const occA = a.total_slots ? ((a.total_slots - a.available_slots) / a.total_slots) : 0;
+        const occB = b.total_slots ? ((b.total_slots - b.available_slots) / b.total_slots) : 0;
+        return occA - occB;
+      });
+    } else if (sortBy === 'Name A-Z') {
+      sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
-    if (sortBy === 'available') {
-      return (parseInt(b.available_slots, 10) || 0) - (parseInt(a.available_slots, 10) || 0);
-    }
-    if (sortBy === 'occupancy') {
-      const rateA = (parseInt(a.occupied_slots || (a.total_slots - a.available_slots), 10) / a.total_slots) || 0;
-      const rateB = (parseInt(b.occupied_slots || (b.total_slots - b.available_slots), 10) / b.total_slots) || 0;
-      return rateA - rateB;
-    }
-    if (sortBy === 'name') {
-      return a.name.localeCompare(b.name);
-    }
-    return 0;
-  });
+    return sorted;
+  }, [parkings, sortBy]);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    onSearchCitySubmit?.(searchCity);
+  };
 
   return (
-    <div className="space-y-5">
-      
-      {/* Search Box & Controls Bar */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
-        
-        {/* City Search Input */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSearchCitySubmit && onSearchCitySubmit(searchCity);
-          }}
-          className="relative w-full md:w-80 flex items-center gap-2"
-        >
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 transform -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search city (e.g. San Francisco, San Jose)..."
-              value={searchCity}
-              onChange={(e) => setSearchCity(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs transition-colors shrink-0"
-          >
-            Search
-          </button>
+    <div className="flex flex-col gap-6 w-full text-neutral-200">
+      <div className="flex flex-col md:flex-row gap-3">
+        <form onSubmit={handleSearchSubmit} className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+          <input
+            type="text"
+            value={searchCity}
+            onChange={(e) => setSearchCity(e.target.value)}
+            placeholder="Search parking or city..."
+            className="w-full bg-neutral-900 border border-neutral-800 rounded-lg py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-neutral-700 transition-colors placeholder-neutral-600"
+          />
         </form>
-
-        {/* Controls: Sort Dropdown & GPS Detect Button */}
-        <div className="flex items-center space-x-2 text-xs text-slate-300 w-full md:w-auto justify-between md:justify-end">
-          
-          {/* Sort By Dropdown */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800">
-            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-slate-400 hidden sm:inline">Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="nearest" className="bg-slate-900 text-white">Nearest (Driving)</option>
-              <option value="available" className="bg-slate-900 text-white">Most Free Slots</option>
-              <option value="occupancy" className="bg-slate-900 text-white">Lowest Occupancy</option>
-              <option value="name" className="bg-slate-900 text-white">Name (A-Z)</option>
-            </select>
-          </div>
-
-          {/* Detect GPS Location Button */}
+        <div className="flex gap-2">
           <button
             onClick={onRequestUserLocation}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500 text-indigo-400 font-medium transition-colors"
-            title="Use My GPS Location"
+            className="flex items-center justify-center p-2 bg-neutral-900 border border-neutral-800 rounded-lg hover:bg-neutral-800 transition-colors"
+            title="Use my location"
           >
-            <Compass className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">Use GPS</span>
+            <Compass className="w-4 h-4 text-neutral-400" />
           </button>
-
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-neutral-900 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-700 transition-colors appearance-none"
+          >
+            <option value="Nearest">Nearest</option>
+            <option value="Most Available">Most Available</option>
+            <option value="Lowest Occupancy">Lowest Occupancy</option>
+            <option value="Name A-Z">Name A-Z</option>
+          </select>
         </div>
-
       </div>
 
-      {/* Parking Cards Grid */}
-      {loading ? (
-        <div className="p-8 text-center bg-slate-900 rounded-2xl border border-slate-800">
-          <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin mx-auto mb-2" />
-          <p className="text-xs text-slate-400">Loading live parking locations...</p>
-        </div>
-      ) : sortedParkings.length === 0 ? (
-        <div className="p-8 text-center bg-slate-900 rounded-2xl border border-slate-800 text-slate-400 text-sm">
-          No parking locations found matching "{searchCity}". Try searching another city!
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {sortedParkings.map((parking) => (
-            <ParkingCardSkeleton
-              key={parking.id}
-              parking={parking}
-              isSelected={selectedParking?.id === parking.id}
-              onSelect={onSelectParking}
-              onOpenSlotsInspector={onOpenSlotsInspector}
-              onOpenReserve={onOpenReserve}
-              onSimulateESP32={onSimulateESP32}
-              isNearest={parking.id === nearestParkingId}
-            />
-          ))}
-        </div>
-      )}
-
+      <div className="flex-1">
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="w-6 h-6 border-2 border-neutral-600 border-t-neutral-300 rounded-full animate-spin" />
+          </div>
+        ) : sortedParkings.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {sortedParkings.map((parking) => (
+              <ParkingCardSkeleton
+                key={parking.id}
+                parking={parking}
+                isSelected={selectedParking?.id === parking.id}
+                isNearest={nearestParkingId === parking.id}
+                onSelect={onSelectParking}
+                onSimulateESP32={onSimulateESP32}
+                onOpenSlotsInspector={onOpenSlotsInspector}
+                onOpenReserve={onOpenReserve}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-20 text-neutral-500 text-sm">
+            No parkings found.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

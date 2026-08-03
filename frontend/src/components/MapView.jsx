@@ -1,256 +1,154 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Compass, MapPin } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 
-/**
- * MapView Component (Fixed Leaflet Map - No Glitching, Smooth GPS Centering)
- */
 export default function MapView({
   parkings,
   selectedParking,
   onSelectParking,
   userLocation,
-  onRequestUserLocation,
+  onRequestUserLocation
 }) {
   const mapContainerRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markersGroupRef = useRef(null);
-  const userMarkerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef(null);
 
-  // 1. Initialize Leaflet map
   useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    if (!mapInstanceRef.current) {
-      // Default to user location if already present, otherwise fallback
-      const initialLat = userLocation ? userLocation.lat : 10.9541;
-      const initialLng = userLocation ? userLocation.lng : 78.7589;
-
-      const map = L.map(mapContainerRef.current, {
-        center: [initialLat, initialLng],
-        zoom: 13,
+    if (!mapRef.current) {
+      mapRef.current = L.map(mapContainerRef.current, {
         zoomControl: false,
+        center: userLocation ? [userLocation.lat, userLocation.lng] : [10.9541, 78.7589],
+        zoom: 13,
       });
 
-      L.control.zoom({ position: 'topright' }).addTo(map);
-
-      // CartoDB Dark Tiles
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
         subdomains: 'abcd',
-        maxZoom: 19,
-      }).addTo(map);
+        maxZoom: 19
+      }).addTo(mapRef.current);
 
-      const markersGroup = L.layerGroup().addTo(map);
-      markersGroupRef.current = markersGroup;
-      mapInstanceRef.current = map;
+      L.control.zoom({ position: 'topright' }).addTo(mapRef.current);
 
-      // Invalidate size to fix tile rendering/glitching bugs
+      markersRef.current = L.layerGroup().addTo(mapRef.current);
+
       setTimeout(() => {
-        map.invalidateSize();
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+        }
       }, 250);
     }
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
       }
     };
   }, []);
 
-  // 2. Center map when userLocation changes
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    map.invalidateSize();
-
-    if (userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
-      map.flyTo([userLocation.lat, userLocation.lng], 14, { duration: 1.2 });
+    if (mapRef.current && userLocation) {
+      mapRef.current.invalidateSize();
+      mapRef.current.flyTo([userLocation.lat, userLocation.lng], 14, { duration: 1.2 });
     }
   }, [userLocation?.lat, userLocation?.lng]);
 
-  // 3. Center map when explicit parking card is selected by user
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !selectedParking) return;
-
-    const lat = parseFloat(selectedParking.latitude);
-    const lng = parseFloat(selectedParking.longitude);
-
-    if (!isNaN(lat) && !isNaN(lng)) {
-      map.flyTo([lat, lng], 15, { duration: 1 });
+    if (mapRef.current && selectedParking) {
+      const lat = parseFloat(selectedParking.latitude);
+      const lng = parseFloat(selectedParking.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        mapRef.current.flyTo([lat, lng], 15, { duration: 1 });
+      }
     }
   }, [selectedParking?.id, selectedParking?.latitude, selectedParking?.longitude]);
 
-  // 4. Update markers group (User Puck & Parking Pins)
   useEffect(() => {
-    const map = mapInstanceRef.current;
-    const markersGroup = markersGroupRef.current;
-    if (!map || !markersGroup) return;
+    if (!mapRef.current || !markersRef.current) return;
 
-    markersGroup.clearLayers();
+    markersRef.current.clearLayers();
 
-    // Add High-Visibility User GPS Puck
-    if (userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
-      const userLatLng = [userLocation.lat, userLocation.lng];
-
+    if (userLocation) {
       const userIcon = L.divIcon({
-        className: 'user-gps-marker',
-        html: `
-          <div class="relative flex items-center justify-center w-10 h-10">
-            <span class="absolute w-10 h-10 rounded-full bg-blue-500/40 animate-ping"></span>
-            <span class="relative w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-2xl flex items-center justify-center">
-              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
-            </span>
-          </div>
-        `,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
+        className: 'user-location-marker',
+        html: `<div class="relative flex h-4 w-4 items-center justify-center">
+                 <div class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></div>
+                 <div class="relative inline-flex h-3 w-3 rounded-full bg-blue-500 border-2 border-white"></div>
+               </div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
       });
-
-      const userMarker = L.marker(userLatLng, { icon: userIcon, zIndexOffset: 1000 })
-        .bindPopup(`
-          <div style="padding: 4px; font-family: Inter, sans-serif;">
-            <strong style="color: #60a5fa; font-size: 13px;">📍 Your Live GPS Location</strong>
-            <p style="font-size: 11px; color: #94a3b8; margin-top: 2px;">
-              Lat: ${userLocation.lat.toFixed(4)}, Lng: ${userLocation.lng.toFixed(4)}
-            </p>
-          </div>
-        `);
-
-      markersGroup.addLayer(userMarker);
+      L.marker([userLocation.lat, userLocation.lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(markersRef.current);
     }
 
-    // Add Parking Location Markers
-    parkings.forEach((parking) => {
+    parkings?.forEach(parking => {
       const lat = parseFloat(parking.latitude);
       const lng = parseFloat(parking.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
 
-      const isAvailable = parseInt(parking.available_slots, 10) > 0;
-      const isSelected = selectedParking && selectedParking.id === parking.id;
+      const available = parseInt(parking.available_slots, 10) || 0;
+      const total = parseInt(parking.total_slots, 10) || 1;
+      const percentage = (available / total) * 100;
+      
+      let colorClass = 'bg-red-500';
+      if (percentage > 40) colorClass = 'bg-green-500';
+      else if (percentage > 15) colorClass = 'bg-yellow-500';
 
-      const pinColor = isAvailable ? '#10b981' : '#ef4444';
-      const borderStyle = isSelected ? 'border-4 border-blue-400 scale-110' : 'border-2 border-slate-900';
-
-      const customPinIcon = L.divIcon({
-        className: 'parking-pin-marker',
-        html: `
-          <div class="relative flex items-center justify-center ${borderStyle}" style="
-            background-color: ${pinColor};
-            width: 36px;
-            height: 36px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.6);
-          ">
-            <span style="
-              transform: rotate(45deg);
-              font-weight: 800;
-              font-size: 14px;
-              color: white;
-            ">P</span>
-          </div>
-        `,
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -36],
+      const parkingIcon = L.divIcon({
+        className: 'parking-marker',
+        html: `<div class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-neutral-900 ${colorClass} shadow-md shadow-black/50 text-[10px] font-bold text-neutral-950">${available}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
       });
 
-      const googleMapsNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+      const marker = L.marker([lat, lng], { icon: parkingIcon }).addTo(markersRef.current);
 
-      const popupHtml = `
-        <div style="font-family: Inter, sans-serif; width: 230px; padding: 4px;">
-          <h4 style="font-weight: 700; font-size: 14px; color: #f8fafc; margin-bottom: 2px;">
-            ${parking.name}
-          </h4>
-          <p style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">
-            📍 ${parking.address}, ${parking.city}
-          </p>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; margin-bottom: 8px; background: #0f172a; padding: 6px; border-radius: 8px; border: 1px solid #334155;">
-            <div>
-              <span style="color: #94a3b8; display: block; font-size: 9px; text-transform: uppercase;">Distance</span>
-              <strong style="color: #60a5fa;">${parking.distanceText || 'Calculating...'}</strong>
-            </div>
-            <div>
-              <span style="color: #94a3b8; display: block; font-size: 9px; text-transform: uppercase;">Est. Travel</span>
-              <strong style="color: #fbbf24;">${parking.durationText || 'Calculating...'}</strong>
-            </div>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; margin-bottom: 10px;">
-            <span style="color: #94a3b8;">Total Slots: <strong>${parking.total_slots}</strong></span>
-            <span style="color: ${isAvailable ? '#10b981' : '#ef4444'}; font-weight: 700;">
-              ${parking.available_slots} Free
-            </span>
-          </div>
-
-          <a href="${googleMapsNavUrl}" target="_blank" rel="noopener noreferrer" style="
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            width: 100%;
-            padding: 8px;
-            background: #2563eb;
-            color: white;
-            font-weight: 700;
-            font-size: 11px;
-            border-radius: 8px;
-            text-decoration: none;
-          ">
-            🚘 Navigate with Google Maps
-          </a>
+      const popupContent = document.createElement('div');
+      popupContent.className = 'p-2 flex flex-col gap-2 min-w-[150px]';
+      popupContent.innerHTML = `
+        <h4 class="font-medium text-neutral-200 text-sm m-0">${parking.name}</h4>
+        <div class="flex justify-between items-center text-xs text-neutral-400">
+          <span>Available:</span>
+          <span class="font-medium text-neutral-200">${available}/${total}</span>
         </div>
+        ${parking.distance ? `<div class="text-xs text-neutral-500">${parking.distance}</div>` : ''}
+        <button id="select-btn-${parking.id}" class="mt-2 w-full rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700 transition-colors">Select</button>
       `;
 
-      const marker = L.marker([lat, lng], { icon: customPinIcon })
-        .bindPopup(popupHtml, { className: 'custom-leaflet-popup' })
-        .on('click', () => {
-          if (onSelectParking) onSelectParking(parking);
-        });
+      popupContent.querySelector(`#select-btn-${parking.id}`).addEventListener('click', () => {
+        onSelectParking(parking);
+      });
 
-      markersGroup.addLayer(marker);
-
-      if (isSelected) {
-        marker.openPopup();
-      }
+      marker.bindPopup(popupContent, {
+        className: 'dark-popup',
+        closeButton: false
+      });
     });
-  }, [parkings, selectedParking, userLocation]);
-
-  const handleCenterUser = () => {
-    if (onRequestUserLocation) onRequestUserLocation();
-    if (userLocation && mapInstanceRef.current) {
-      mapInstanceRef.current.invalidateSize();
-      mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 15, { duration: 1 });
-    }
-  };
+  }, [parkings, userLocation, onSelectParking]);
 
   return (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden card-modern border border-slate-800 shadow-xl">
-      
-      {/* Map Container */}
-      <div ref={mapContainerRef} className="w-full h-full min-h-[450px]" />
-
-      {/* Floating GPS Location Button */}
-      <button
-        onClick={handleCenterUser}
-        className="absolute bottom-4 left-4 z-20 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold shadow-lg transition-all"
+    <div className="relative h-full w-full">
+      <div 
+        ref={mapContainerRef} 
+        className="h-full w-full rounded-xl overflow-hidden border border-neutral-800 z-0 bg-[#0a0a0a]"
+      />
+      <style>{`
+        .leaflet-container { background: #0a0a0a; font-family: 'Inter', sans-serif; }
+        .leaflet-bar a { background-color: #171717 !important; border-color: #262626 !important; color: #a3a3a3 !important; }
+        .leaflet-bar a:hover { background-color: #262626 !important; color: #f5f5f5 !important; }
+        .dark-popup .leaflet-popup-content-wrapper { background: #171717; border: 1px solid #262626; color: #d4d4d4; border-radius: 8px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5); }
+        .dark-popup .leaflet-popup-tip { background: #171717; border: 1px solid #262626; }
+        .dark-popup .leaflet-popup-content { margin: 0; }
+      `}</style>
+      <button 
+        onClick={onRequestUserLocation}
+        className="absolute bottom-4 right-4 z-[400] flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 shadow-md hover:bg-neutral-800 hover:text-neutral-200 transition-colors"
+        title="My Location"
       >
-        <Compass className="w-4 h-4 text-blue-400" />
-        <span>{userLocation ? 'Center on My GPS Location' : 'Detect My Location'}</span>
+        <Crosshair size={20} />
       </button>
-
-      {/* Top Floating Badge */}
-      <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300 font-medium flex items-center gap-2 shadow-md">
-        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-        <span>Live GPS Map Active</span>
-      </div>
-
     </div>
   );
 }

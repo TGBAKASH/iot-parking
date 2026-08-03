@@ -1,177 +1,115 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, KeyRound } from 'lucide-react';
+import { X } from 'lucide-react';
 import { authService } from '../services/api';
 
-/**
- * AuthModal Component (Clean Public User Registration & Login)
- * 100% Confidential - Zero Admin references in public UI.
- */
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
-  const [isRegister, setIsRegister] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError(null);
     setLoading(true);
 
     try {
-      let res;
-      if (isRegister) {
-        res = await authService.register({ name, email, password });
+      let response;
+      if (isLogin) {
+        response = await authService.login(email, password);
       } else {
-        res = await authService.login({ email, password });
+        response = await authService.register(name, email, password);
       }
-
-      if (res.success && res.user) {
-        onAuthSuccess(res.user);
-        onClose();
-      } else {
-        setError(res.message || 'Authentication failed.');
-      }
+      onAuthSuccess?.(response.user || response);
+      onClose();
     } catch (err) {
-      const serverMessage = err.response?.data?.message || 'Connection error. Please try again.';
-      setError(serverMessage);
+      setError(err.response?.data?.message || err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl">
-        
-        {/* Close Button */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl relative flex flex-col">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800 transition-colors"
+          className="absolute right-4 top-4 text-neutral-500 hover:text-neutral-300 transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
 
-        {/* Modal Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex p-3 rounded-xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 mb-3">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-bold text-white">
-            {isRegister ? 'Create an Account' : 'Sign In with Email'}
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            {isRegister
-              ? 'Enter your name, email address, and password to register.'
-              : 'Enter your email address and password to sign in.'}
-          </p>
+        <div className="flex border-b border-neutral-800">
+          <button
+            className={`flex-1 py-4 text-sm font-medium transition-colors ${
+              isLogin ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+            }`}
+            onClick={() => { setIsLogin(true); setError(null); }}
+          >
+            Login
+          </button>
+          <button
+            className={`flex-1 py-4 text-sm font-medium transition-colors ${
+              !isLogin ? 'text-white border-b-2 border-white' : 'text-neutral-500 hover:text-neutral-300'
+            }`}
+            onClick={() => { setIsLogin(false); setError(null); }}
+          >
+            Register
+          </button>
         </div>
 
-        {/* Error Alert */}
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {isRegister && (
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+        <div className="p-6">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {!isLogin && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-neutral-400">Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Akash"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-600 text-neutral-200 transition-colors"
                 />
               </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-neutral-400">Email</label>
               <input
                 type="email"
                 required
-                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-600 text-neutral-200 transition-colors"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-neutral-400">Password</label>
               <input
                 type="password"
                 required
-                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-600 text-neutral-200 transition-colors"
               />
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
-          >
-            {loading ? (
-              <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4" />
-            ) : isRegister ? (
-              <>
-                <UserPlus className="w-4 h-4" /> Create Account
-              </>
-            ) : (
-              <>
-                <LogIn className="w-4 h-4" /> Sign In
-              </>
+            {error && (
+              <div className="text-red-400 text-xs mt-1">{error}</div>
             )}
-          </button>
-        </form>
 
-        {/* Toggle Register / Login */}
-        <div className="mt-4 pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
-          {isRegister ? (
-            <p>
-              Already have an account?{' '}
-              <button
-                onClick={() => setIsRegister(false)}
-                className="text-indigo-400 font-semibold hover:underline"
-              >
-                Sign In
-              </button>
-            </p>
-          ) : (
-            <p>
-              Don't have an account?{' '}
-              <button
-                onClick={() => setIsRegister(true)}
-                className="text-indigo-400 font-semibold hover:underline"
-              >
-                Register
-              </button>
-            </p>
-          )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-2 w-full bg-white text-black font-medium text-sm rounded-lg py-2.5 hover:bg-neutral-200 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
         </div>
-
       </div>
     </div>
   );

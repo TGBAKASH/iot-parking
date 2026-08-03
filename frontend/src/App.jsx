@@ -11,73 +11,59 @@ import SecretAdminPanel from './components/SecretAdminPanel';
 import { parkingService, authService } from './services/api';
 import { fetchDrivingDistanceAndDuration, searchCityGeocode, fetchIPLocation, reverseGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
-import { Layers, MapPin, Zap, Info, Compass, BarChart3, Calendar } from 'lucide-react';
+import { Zap, Search, Compass } from 'lucide-react';
 
-/**
- * Main App Component (Global Dynamic GPS Localizer)
- * - Automatically detects user location (Browser GPS or IP Geolocation).
- * - Dynamically projects parking locations right in the user's local city/area.
- */
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
-
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [parkings, setParkings] = useState([]);
   const [selectedParking, setSelectedParking] = useState(null);
   const [searchCity, setSearchCity] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // User location state (GPS or IP)
   const [userLocation, setUserLocation] = useState(null);
   const [userCityInfo, setUserCityInfo] = useState({ city: 'Local Area', road: 'Main Street' });
   const [nearestParkingId, setNearestParkingId] = useState(null);
 
-  // User auth state
   const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Modals state
   const [inspectorParkingId, setInspectorParkingId] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingParking, setEditingParking] = useState(null);
   const [reservingParking, setReservingParking] = useState(null);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
-  // Toast Notification
-  const [statusNotification, setStatusNotification] = useState(null);
+  const [toast, setToast] = useState(null);
 
-  // Track browser URL path changes
   useEffect(() => {
     const handleLocationChange = () => setCurrentPath(window.location.pathname);
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
-  // Request Geolocation or IP Location
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
+
   const requestUserLocation = async () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-          const loc = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
+          const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
           setUserLocation(loc);
-          setStatusNotification(`📍 GPS Location Acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
-          setTimeout(() => setStatusNotification(null), 4000);
-
+          showToast(`📍 GPS acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           const cityInfo = await reverseGeocode(loc.lat, loc.lng);
           if (cityInfo) setUserCityInfo(cityInfo);
         },
-        async (error) => {
-          console.warn('Browser GPS permission unavailable, falling back to IP Geolocation:', error.message);
+        async () => {
           const ipLoc = await fetchIPLocation();
           if (ipLoc) {
             setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
             const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
             if (cityInfo) setUserCityInfo(cityInfo);
-            setStatusNotification(`📍 Location set via IP: ${ipLoc.city}`);
-            setTimeout(() => setStatusNotification(null), 4000);
+            showToast(`📍 Location via IP: ${ipLoc.city}`);
           }
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -92,14 +78,11 @@ export default function App() {
     }
   };
 
-  // 1. Fetch parking locations from backend
   const loadParkings = async () => {
     try {
       setLoading(true);
       const res = await parkingService.getAllParkings();
-      if (res.success && res.data) {
-        setParkings(res.data);
-      }
+      if (res.success && res.data) setParkings(res.data);
     } catch (err) {
       console.error('Failed to load parkings:', err);
     } finally {
@@ -107,138 +90,82 @@ export default function App() {
     }
   };
 
-  // 2. Initial Setup
   useEffect(() => {
     requestUserLocation();
     loadParkings();
 
-    function onConnect() {
-      setIsConnected(true);
-    }
+    socket.on('connect', () => setIsConnected(true));
+    socket.on('disconnect', () => setIsConnected(false));
 
-    function onDisconnect() {
-      setIsConnected(false);
-    }
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-
-    // Subscribe to live ESP32 updates
     subscribeToSlotUpdates((data) => {
       const { parking_id, slot_number, is_occupied, updated_parking } = data;
-
-      setParkings((prevParkings) =>
-        prevParkings.map((p) => {
+      setParkings((prev) =>
+        prev.map((p) => {
           if (p.id === parking_id) {
             const newAvail = updated_parking
               ? parseInt(updated_parking.available_slots, 10)
               : Math.max(0, parseInt(p.available_slots, 10) + (is_occupied ? -1 : 1));
-
-            const newTotal = parseInt(p.total_slots, 10);
-            const newOccupied = newTotal - newAvail;
-
-            return {
-              ...p,
-              available_slots: newAvail,
-              occupied_slots: newOccupied,
-            };
+            return { ...p, available_slots: newAvail, occupied_slots: parseInt(p.total_slots, 10) - newAvail };
           }
           return p;
         })
       );
-
-      setStatusNotification(
-        `⚡ Real-time Slot #${slot_number} in Parking Lot #${parking_id} is now ${
-          is_occupied ? 'OCCUPIED' : 'FREE'
-        }!`
-      );
-      setTimeout(() => setStatusNotification(null), 4000);
+      showToast(`⚡ Slot #${slot_number} — Parking #${parking_id} is now ${is_occupied ? 'occupied' : 'free'}`);
     });
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
+      socket.off('connect');
+      socket.off('disconnect');
       unsubscribeFromSlotUpdates();
     };
   }, []);
 
-  // 3. Calculate OSRM driving distance & project local parking locations near user's actual city
+  // Calculate distances and project nearby if DB locations are far
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
-
     let isMounted = true;
 
-    const calculateDistances = async () => {
+    const calculate = async () => {
       let minMeters = Infinity;
       let closestId = null;
 
-      // Check distance to DB sample locations
       const firstLat = parseFloat(parkings[0].latitude);
       const firstLng = parseFloat(parkings[0].longitude);
       const approxDistKm = Math.hypot(firstLat - userLocation.lat, firstLng - userLocation.lng) * 111;
-
       const isFarAway = approxDistKm > 100;
 
-      const updatedList = await Promise.all(
+      const offsets = [
+        [0.006, 0.005], [-0.007, 0.010], [0.012, -0.007],
+        [-0.010, -0.012], [0.004, -0.015], [-0.015, 0.008],
+      ];
+
+      const updated = await Promise.all(
         parkings.map(async (p, idx) => {
-          let targetLat = parseFloat(p.latitude);
-          let targetLng = parseFloat(p.longitude);
-          let targetCity = p.city;
-          let targetAddress = p.address;
+          let lat = parseFloat(p.latitude);
+          let lng = parseFloat(p.longitude);
+          let city = p.city;
+          let address = p.address;
 
-          // If default DB locations are far from user, place parking lots right around user's local city (0.5km to 2.5km)
           if (isFarAway) {
-            const offsets = [
-              [0.006, 0.005],
-              [-0.007, 0.010],
-              [0.012, -0.007],
-              [-0.010, -0.012],
-              [0.004, -0.015],
-              [-0.015, 0.008],
-            ];
             const offset = offsets[idx % offsets.length];
-            targetLat = userLocation.lat + offset[0];
-            targetLng = userLocation.lng + offset[1];
-            targetCity = userCityInfo.city || 'Local Area';
-            targetAddress = `${100 + (idx + 1) * 25} ${userCityInfo.road || 'Central Blvd'}`;
+            lat = userLocation.lat + offset[0];
+            lng = userLocation.lng + offset[1];
+            city = userCityInfo.city || 'Local Area';
+            address = `${100 + (idx + 1) * 25} ${userCityInfo.road || 'Central Blvd'}`;
           }
 
-          const route = await fetchDrivingDistanceAndDuration(
-            userLocation.lat,
-            userLocation.lng,
-            targetLat,
-            targetLng
-          );
+          const route = await fetchDrivingDistanceAndDuration(userLocation.lat, userLocation.lng, lat, lng);
+          if (route.rawMeters < minMeters) { minMeters = route.rawMeters; closestId = p.id; }
 
-          if (route.rawMeters < minMeters) {
-            minMeters = route.rawMeters;
-            closestId = p.id;
-          }
-
-          return {
-            ...p,
-            city: targetCity,
-            address: targetAddress,
-            latitude: targetLat,
-            longitude: targetLng,
-            distanceText: route.distanceKm,
-            durationText: route.durationMins,
-            rawDistanceMeters: route.rawMeters,
-          };
+          return { ...p, city, address, latitude: lat, longitude: lng, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
         })
       );
 
-      if (isMounted) {
-        setParkings(updatedList);
-        setNearestParkingId(closestId);
-      }
+      if (isMounted) { setParkings(updated); setNearestParkingId(closestId); }
     };
 
-    calculateDistances();
-
-    return () => {
-      isMounted = false;
-    };
+    calculate();
+    return () => { isMounted = false; };
   }, [userLocation?.lat, userLocation?.lng, userCityInfo?.city, parkings.length]);
 
   const handleSearchCitySubmit = async (cityName) => {
@@ -248,52 +175,30 @@ export default function App() {
       setUserLocation({ lat: geo.lat, lng: geo.lng });
       const cityInfo = await reverseGeocode(geo.lat, geo.lng);
       if (cityInfo) setUserCityInfo(cityInfo);
-      setStatusNotification(`🔍 Location set to: ${cityName}`);
-      setTimeout(() => setStatusNotification(null), 4000);
+      showToast(`🔍 Location set to: ${cityName}`);
     }
   };
 
   const handleSimulateESP32 = async (parkingId, slotNumber, isOccupied) => {
     try {
-      await parkingService.updateParkingFromESP32({
-        parking_id: parkingId,
-        slot_number: slotNumber,
-        is_occupied: isOccupied,
-      });
+      await parkingService.updateParkingFromESP32({ parking_id: parkingId, slot_number: slotNumber, is_occupied: isOccupied });
     } catch (err) {
       console.error('ESP32 simulation failed:', err);
     }
   };
 
-  const handleDeleteParking = async (parkingId) => {
-    try {
-      const res = await parkingService.deleteParking(parkingId);
-      if (res.success) {
-        setParkings((prev) => prev.filter((p) => p.id !== parkingId));
-        if (selectedParking?.id === parkingId) {
-          setSelectedParking(null);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete parking:', err);
-    }
-  };
-
-  // Secret Admin Panel Route (/sec-admin-panel)
+  // Secret Admin Panel Route
   if (currentPath === '/sec-admin-panel') {
     return (
       <SecretAdminPanel
         user={user}
         onAuthSuccess={(u) => setUser(u)}
-        onReturnHome={() => {
-          window.history.pushState({}, '', '/');
-          setCurrentPath('/');
-        }}
+        onReturnHome={() => { window.history.pushState({}, '', '/'); setCurrentPath('/'); }}
       />
     );
   }
 
-  const filteredParkings = parkings.filter(
+  const filtered = parkings.filter(
     (p) =>
       p.name.toLowerCase().includes(searchCity.toLowerCase()) ||
       p.city.toLowerCase().includes(searchCity.toLowerCase()) ||
@@ -301,66 +206,47 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      
-      {/* Navbar Header */}
+    <div className="min-h-screen bg-[#0a0a0a] text-neutral-100 flex flex-col">
       <Navbar
         isConnected={isConnected}
         user={user}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        onLogout={() => {
-          authService.logout();
-          setUser(null);
-        }}
+        onLogout={() => { authService.logout(); setUser(null); }}
         onOpenAnalytics={() => setIsAnalyticsOpen(true)}
         onRefresh={loadParkings}
       />
 
-      {/* Real-Time WebSocket Toast Notification */}
-      {statusNotification && (
-        <div className="fixed top-16 right-4 z-50 animate-bounce">
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-blue-500 text-slate-100 text-xs font-semibold shadow-xl">
-            <Zap className="w-4 h-4 text-blue-400 shrink-0" />
-            <span>{statusNotification}</span>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-16 right-4 z-50 animate-pulse">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-100 text-xs font-medium shadow-2xl">
+            <Zap className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+            <span>{toast}</span>
           </div>
         </div>
       )}
 
-      {/* Main Content Dashboard Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
-        
-        {/* Header Banner */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-sm">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 space-y-5">
+        {/* Hero — minimal */}
+        <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
-                Live IoT Smart Parking
-              </span>
-              <span className="text-xs text-slate-400">
-                {userCityInfo.city ? `Current Location: ${userCityInfo.city}` : 'Neon PostgreSQL DB • OpenStreetMap'}
-              </span>
-            </div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Smart Parking Availability Hub</h2>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Real-time slot monitoring, driving directions, and digital slot reservations.
+            <h2 className="text-lg font-semibold text-white">Nearby Parking</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              {userCityInfo.city ? `${userCityInfo.city}` : 'Detecting location...'} · Real-time IoT monitoring
             </p>
           </div>
-
-          <div className="flex items-center gap-2 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <Info className="w-4 h-4 text-blue-400 shrink-0" />
-            <span className="text-slate-300">
-              Click <strong>"Reserve Slot"</strong> to generate your digital QR pass token!
-            </span>
+          <div className="flex items-center gap-2">
+            <button onClick={requestUserLocation} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-900 border border-neutral-800 rounded-lg transition-colors">
+              <Compass className="w-3.5 h-3.5" /> GPS
+            </button>
           </div>
         </div>
 
-        {/* Main Grid: Left = Dashboard List, Right = Leaflet Map */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* Left Column: Search & Parking List */}
-          <div className="lg:col-span-7 space-y-6">
+        {/* Main grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="lg:col-span-7 space-y-4">
             <DashboardSkeleton
-              parkings={filteredParkings}
+              parkings={filtered}
               selectedParking={selectedParking}
               onSelectParking={(p) => setSelectedParking(p)}
               searchCity={searchCity}
@@ -374,64 +260,29 @@ export default function App() {
               nearestParkingId={nearestParkingId}
             />
           </div>
-
-          {/* Right Column: Leaflet Map */}
-          <div className="lg:col-span-5 h-[520px] lg:h-[calc(100vh-220px)] sticky top-24">
+          <div className="lg:col-span-5 h-[480px] lg:h-[calc(100vh-200px)] sticky top-16">
             <MapView
-              parkings={filteredParkings}
+              parkings={filtered}
               selectedParking={selectedParking}
               onSelectParking={(p) => setSelectedParking(p)}
               userLocation={userLocation}
               onRequestUserLocation={requestUserLocation}
             />
           </div>
-
         </div>
-
       </main>
 
       {/* Modals */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={(u) => setUser(u)}
-      />
-
-      <SlotDetailsModal
-        parkingId={inspectorParkingId}
-        isOpen={Boolean(inspectorParkingId)}
-        onClose={() => setInspectorParkingId(null)}
-        onSlotStateChanged={loadParkings}
-      />
-
-      <AddParkingModal
-        isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setEditingParking(null);
-        }}
-        onSuccess={() => loadParkings()}
-        initialData={editingParking}
-      />
-
-      <ReservationModal
-        isOpen={Boolean(reservingParking)}
-        onClose={() => setReservingParking(null)}
-        parking={reservingParking}
-        user={user}
-        onSuccess={() => loadParkings()}
-      />
-
-      <AnalyticsModal
-        isOpen={isAnalyticsOpen}
-        onClose={() => setIsAnalyticsOpen(false)}
-      />
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onAuthSuccess={(u) => setUser(u)} />
+      <SlotDetailsModal parkingId={inspectorParkingId} isOpen={Boolean(inspectorParkingId)} onClose={() => setInspectorParkingId(null)} onSlotStateChanged={loadParkings} />
+      <AddParkingModal isOpen={isAddModalOpen} onClose={() => { setIsAddModalOpen(false); setEditingParking(null); }} onSuccess={() => loadParkings()} initialData={editingParking} />
+      <ReservationModal isOpen={Boolean(reservingParking)} onClose={() => setReservingParking(null)} parking={reservingParking} user={user} onSuccess={() => loadParkings()} />
+      <AnalyticsModal isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>Smart Parking System - ESP32 IoT & Full-Stack Solution</p>
+      <footer className="border-t border-neutral-900 py-5 text-center text-[11px] text-neutral-600">
+        ParkSense · IoT Smart Parking System
       </footer>
-
     </div>
   );
 }

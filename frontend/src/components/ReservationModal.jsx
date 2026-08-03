@@ -1,202 +1,141 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, User, Car, QrCode, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle2 } from 'lucide-react';
 import { reservationService } from '../services/api';
 
-/**
- * ReservationModal Component
- * Allows users to reserve a slot and generates a Digital QR Pass Code token.
- */
 export default function ReservationModal({ isOpen, onClose, parking, user, onSuccess }) {
-  const [slotNumber, setSlotNumber] = useState('1');
-  const [userName, setUserName] = useState(user ? user.name : '');
+  const [slotNumber, setSlotNumber] = useState('');
+  const [duration, setDuration] = useState('60'); // minutes
   const [vehicleNumber, setVehicleNumber] = useState('');
-  const [durationHours, setDurationHours] = useState('2');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [createdPass, setCreatedPass] = useState(null);
+  const [error, setError] = useState(null);
+  const [successId, setSuccessId] = useState(null);
 
   if (!isOpen || !parking) return null;
 
-  const handleBooking = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    if (!user) {
+      setError('Please sign in to make a reservation.');
+      return;
+    }
 
+    setLoading(true);
+    setError(null);
     try {
-      const res = await reservationService.createReservation({
+      const response = await reservationService.createReservation({
         parking_id: parking.id,
         slot_number: parseInt(slotNumber, 10),
-        user_name: userName,
+        duration: parseInt(duration, 10),
         vehicle_number: vehicleNumber,
-        duration_hours: parseInt(durationHours, 10),
       });
-
-      if (res.success && res.data) {
-        setCreatedPass(res.data);
-        if (onSuccess) onSuccess(res.data);
-      } else {
-        setError(res.message || 'Failed to create slot reservation.');
-      }
+      setSuccessId(response.data?.reservation_id || response.data?.id || response.reservation_id || 'Confirmed');
+      onSuccess?.();
     } catch (err) {
-      setError(err.response?.data?.message || 'Server error creating reservation.');
+      setError(err.response?.data?.message || err.message || 'Failed to reserve slot');
     } finally {
       setLoading(false);
     }
   };
 
-  const resetAndClose = () => {
-    setCreatedPass(null);
-    setError('');
+  const handleClose = () => {
+    setSuccessId(null);
+    setSlotNumber('');
+    setVehicleNumber('');
+    setError(null);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-md p-6 glass-panel rounded-3xl border border-slate-700/80 shadow-2xl">
-        
-        <button
-          onClick={resetAndClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/80 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl relative flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-neutral-800 shrink-0">
+          <h2 className="text-sm font-medium text-neutral-200">Reserve Slot</h2>
+          <button
+            onClick={handleClose}
+            className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded-md transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-        {!createdPass ? (
-          <>
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="inline-flex p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mb-3">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <h2 className="text-xl font-extrabold text-white">Reserve Parking Slot</h2>
-              <p className="text-xs text-slate-400 mt-1">
-                {parking.name} — {parking.city}
-              </p>
+        <div className="p-5">
+          {successId ? (
+            <div className="flex flex-col items-center py-6 text-center">
+              <CheckCircle2 className="w-12 h-12 text-green-500 mb-4" />
+              <h3 className="text-neutral-200 font-medium mb-1">Reservation Confirmed</h3>
+              <p className="text-neutral-400 text-sm mb-6">ID: {successId}</p>
+              <button
+                onClick={handleClose}
+                className="w-full bg-neutral-800 text-neutral-200 font-medium text-sm rounded-lg py-2.5 hover:bg-neutral-700 transition-colors"
+              >
+                Close
+              </button>
             </div>
-
-            {error && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{error}</span>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="mb-2">
+                <div className="text-sm font-medium text-neutral-200">{parking.name}</div>
+                <div className="text-xs text-neutral-500 mt-0.5">{parking.available_slots || 0} slots available</div>
               </div>
-            )}
 
-            <form onSubmit={handleBooking} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Select Slot Number</label>
-                <select
+              {!user && (
+                <div className="p-3 bg-neutral-800/50 border border-neutral-700/50 rounded-lg text-sm text-neutral-400">
+                  Please sign in first to make a reservation.
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-neutral-400">Slot Number</label>
+                <input
+                  type="number"
+                  required
                   value={slotNumber}
                   onChange={(e) => setSlotNumber(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-400"
-                >
-                  {Array.from({ length: parking.total_slots || 10 }, (_, i) => i + 1).map((num) => (
-                    <option key={num} value={num}>
-                      Slot #{num}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Driver Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. John Doe"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                  placeholder="e.g. 1"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-600 text-neutral-200 transition-colors"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Vehicle License Plate</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-neutral-400">Duration</label>
+                <select
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-600 text-neutral-200 transition-colors appearance-none"
+                >
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                  <option value="120">2 hours</option>
+                  <option value="240">4 hours</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-neutral-400">Vehicle Number</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. CA-7XYZ89"
                   value={vehicleNumber}
                   onChange={(e) => setVehicleNumber(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                  placeholder="e.g. ABC-1234"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-600 text-neutral-200 transition-colors uppercase"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Reservation Duration</label>
-                <select
-                  value={durationHours}
-                  onChange={(e) => setDurationHours(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-cyan-400"
-                >
-                  <option value="1">1 Hour</option>
-                  <option value="2">2 Hours</option>
-                  <option value="4">4 Hours</option>
-                  <option value="8">8 Hours</option>
-                </select>
-              </div>
+              {error && (
+                <div className="text-red-400 text-xs mt-1">{error}</div>
+              )}
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
+                disabled={loading || !user}
+                className="mt-2 w-full bg-green-600 text-white font-medium text-sm rounded-lg py-2.5 hover:bg-green-500 transition-colors disabled:opacity-50 disabled:hover:bg-green-600"
               >
-                {loading ? (
-                  <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4" />
-                ) : (
-                  <>Confirm & Generate Digital Pass</>
-                )}
+                {loading ? 'Reserving...' : 'Reserve Now'}
               </button>
             </form>
-          </>
-        ) : (
-          /* Digital QR Pass Result */
-          <div className="text-center py-4 space-y-4">
-            <div className="inline-flex p-3 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-              <CheckCircle className="w-8 h-8" />
-            </div>
-
-            <h3 className="text-lg font-extrabold text-white">Slot Reserved Successfully!</h3>
-
-            {/* QR Pass Card */}
-            <div className="p-5 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-cyan-500/40 text-center space-y-3 shadow-xl">
-              <div className="inline-block p-3 rounded-xl bg-white text-slate-950 shadow-md">
-                <QrCode className="w-24 h-24 mx-auto" />
-              </div>
-
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">Pass Code Token</span>
-                <strong className="text-lg font-mono text-cyan-400 font-extrabold">{createdPass.reservation_token}</strong>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-left text-xs bg-slate-900/90 p-3 rounded-xl border border-slate-800">
-                <div>
-                  <span className="text-slate-400 text-[10px] block">Location</span>
-                  <strong className="text-white">{createdPass.parking_name || parking.name}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] block">Reserved Slot</span>
-                  <strong className="text-emerald-400">Slot #{createdPass.slot_number}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] block">Vehicle</span>
-                  <strong className="text-white">{createdPass.vehicle_number}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] block">Expires</span>
-                  <strong className="text-amber-400">{new Date(createdPass.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={resetAndClose}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
-            >
-              Done & Close
-            </button>
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
     </div>
   );

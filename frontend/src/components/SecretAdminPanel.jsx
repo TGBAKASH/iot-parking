@@ -1,351 +1,282 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Lock, Mail, Building2, Plus, Edit3, Trash2, Zap, Layers, RefreshCw, KeyRound, ArrowLeft, BarChart3, AlertCircle, CheckCircle } from 'lucide-react';
-import { authService, parkingService, analyticsService } from '../services/api';
+import { ArrowLeft, Plus, Edit2, Trash2, LogIn, Lock } from 'lucide-react';
+import { authService, parkingService } from '../services/api';
 import AddParkingModal from './AddParkingModal';
-import SlotDetailsModal from './SlotDetailsModal';
 
-/**
- * SecretAdminPanel Component (/sec-admin-panel)
- * Dedicated administrative management portal reserved exclusively for hardcoded admin emails
- * (plumetestnet@gmail.com).
- */
+const ALLOWED_EMAILS = ['plumetestnet@gmail.com'];
+
 export default function SecretAdminPanel({ user, onAuthSuccess, onReturnHome }) {
-  const [email, setEmail] = useState('plumetestnet@gmail.com');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
   const [parkings, setParkings] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   
-  // Modals state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // Auth state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingParking, setEditingParking] = useState(null);
-  const [inspectorParkingId, setInspectorParkingId] = useState(null);
 
-  const isAdminAuthenticated = user && (user.role === 'admin' || user.email === 'plumetestnet@gmail.com');
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [parkingsRes, analyticsRes] = await Promise.all([
-        parkingService.getAllParkings(),
-        analyticsService.getSummary(),
-      ]);
-      if (parkingsRes.success) setParkings(parkingsRes.data);
-      if (analyticsRes.success) setAnalytics(analyticsRes.data);
-    } catch (err) {
-      console.error('Error loading admin portal data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const isAuthorized = user && ALLOWED_EMAILS.includes(user.email);
 
   useEffect(() => {
-    if (isAdminAuthenticated) {
-      loadData();
+    if (isAuthorized) {
+      fetchParkings();
     }
-  }, [isAdminAuthenticated]);
+  }, [isAuthorized]);
 
-  const handleAdminLogin = async (e) => {
-    e.preventDefault();
-    setError('');
+  const fetchParkings = async () => {
     setLoading(true);
-
     try {
-      const res = await authService.login({ email, password });
-      if (res.success && res.user) {
-        if (res.user.role === 'admin' || res.user.email === 'plumetestnet@gmail.com') {
-          onAuthSuccess(res.user);
-          loadData();
-        } else {
-          setError('Access Denied: Only hardcoded admin accounts (plumetestnet@gmail.com) can access this secret portal.');
-        }
-      } else {
-        setError(res.message || 'Login failed.');
-      }
+      const data = await parkingService.getAllParkings();
+      setParkings(data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid administrator email or password.');
+      console.error('Failed to fetch parkings:', err);
+      setError('Failed to load parking locations.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteParking = async (parkingId) => {
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setError(null);
     try {
-      const res = await parkingService.deleteParking(parkingId);
-      if (res.success) {
-        setParkings((prev) => prev.filter((p) => p.id !== parkingId));
-        loadData();
+      const response = await authService.login(email, password);
+      const authUser = response.user || response;
+      if (!ALLOWED_EMAILS.includes(authUser.email)) {
+        setError('Access denied. This email is not authorized.');
+        return;
       }
+      onAuthSuccess(authUser);
     } catch (err) {
-      console.error('Failed to delete parking:', err);
+      setError(err.response?.data?.message || err.message || 'Login failed');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
-  const handleSimulateESP32 = async (parkingId, slotNumber, isOccupied) => {
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this parking location?')) return;
     try {
-      await parkingService.updateParkingFromESP32({
-        parking_id: parkingId,
-        slot_number: slotNumber,
-        is_occupied: isOccupied,
-      });
-      loadData();
+      await parkingService.deleteParking(id);
+      fetchParkings();
     } catch (err) {
-      console.error('ESP32 test update failed:', err);
+      console.error('Failed to delete:', err);
+      alert('Failed to delete parking location.');
     }
   };
 
-  if (!isAdminAuthenticated) {
+  const openAddModal = () => {
+    setEditingParking(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (parking) => {
+    setEditingParking(parking);
+    setIsModalOpen(true);
+  };
+
+  if (!user) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
-          
-          <div className="text-center">
-            <div className="inline-flex p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-3">
-              <ShieldAlert className="w-8 h-8" />
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="w-full max-w-md p-8 rounded-xl bg-[#171717] border border-[#262626]">
+          <div className="flex flex-col items-center mb-8">
+            <div className="h-12 w-12 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center mb-4 text-neutral-400">
+              <Lock size={24} />
             </div>
-            <h1 className="text-xl font-extrabold text-white">Secret Administrator Portal</h1>
-            <p className="text-xs text-slate-400 mt-1">
-              Restricted Area: Hardcoded Admin Authentication Required
-            </p>
+            <h1 className="text-xl font-medium text-neutral-200">Admin Login</h1>
+            <p className="text-sm text-neutral-500 mt-1">Restricted access area</p>
           </div>
 
-          {error && (
-            <div className="p-3 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleAdminLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Admin Email Address</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            {error && (
+              <div className="p-3 text-sm text-red-400 bg-red-950/30 border border-red-900/50 rounded-md text-center">
+                {error}
               </div>
+            )}
+            
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-neutral-400">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full rounded-md bg-[#0a0a0a] border border-[#262626] px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition-colors"
+                placeholder="admin@example.com"
+              />
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
+            
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-neutral-400">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full rounded-md bg-[#0a0a0a] border border-[#262626] px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition-colors"
+                placeholder="••••••••"
+              />
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+              disabled={authLoading}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-neutral-200 py-2.5 text-sm font-medium text-neutral-900 hover:bg-white transition-colors disabled:opacity-50"
             >
-              {loading ? (
-                <span className="animate-spin border-2 border-slate-950 border-t-transparent rounded-full w-4 h-4" />
-              ) : (
+              {authLoading ? 'Authenticating...' : (
                 <>
-                  <KeyRound className="w-4 h-4" /> Authenticate Admin Portal
+                  <LogIn size={18} />
+                  Login
                 </>
               )}
             </button>
-          </form>
 
-          <div className="pt-4 border-t border-slate-800 text-center">
             <button
+              type="button"
               onClick={onReturnHome}
-              className="text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1 mx-auto"
+              className="mt-2 text-sm text-neutral-500 hover:text-neutral-300 transition-colors"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Return to Public Dashboard
+              Return Home
             </button>
-          </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="text-center w-full max-w-md p-8 rounded-xl bg-[#171717] border border-[#262626]">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-950 border border-red-900 text-red-500 mb-4">
+            <Lock size={24} />
+          </div>
+          <h1 className="text-xl font-medium text-neutral-200 mb-2">Access Denied</h1>
+          <p className="text-sm text-neutral-500 mb-6">
+            Your email ({user.email}) is not authorized for admin access.
+          </p>
+          <button
+            onClick={onReturnHome}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-neutral-800 py-2.5 text-sm font-medium text-neutral-200 hover:bg-neutral-700 transition-colors"
+          >
+            <ArrowLeft size={18} />
+            Return Home
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400">
-              <ShieldAlert className="w-5 h-5" />
+    <div className="min-h-screen bg-[#0a0a0a] text-neutral-200 font-sans">
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4 border-b border-[#262626] pb-6">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <button
+                onClick={onReturnHome}
+                className="text-neutral-500 hover:text-neutral-300 p-1.5 -ml-1.5 rounded-md hover:bg-neutral-900 transition-colors"
+                title="Back to Map"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <h1 className="text-2xl font-medium tracking-tight">Admin Dashboard</h1>
             </div>
-            <div>
-              <h1 className="text-base font-extrabold text-white">Secret Admin Control Center</h1>
-              <p className="text-xs text-slate-400">Logged in as: <strong className="text-amber-400">{user.email}</strong></p>
-            </div>
+            <p className="text-sm text-neutral-500 ml-9">Manage parking locations across the network.</p>
           </div>
-
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => {
-                setEditingParking(null);
-                setIsAddModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" /> Add Parking Location
-            </button>
-
-            <button
-              onClick={onReturnHome}
-              className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors border border-slate-700"
-            >
-              Exit to Dashboard
-            </button>
-          </div>
+          
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 rounded-md bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition-colors"
+          >
+            <Plus size={16} />
+            Add Location
+          </button>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
-        
-        {/* Metrics Bar */}
-        {analytics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-              <span className="text-slate-400 text-[10px] uppercase font-semibold block">Total Parking Lots</span>
-              <span className="text-2xl font-extrabold text-white">{analytics.totalLocations}</span>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-              <span className="text-slate-400 text-[10px] uppercase font-semibold block">Total Capacity</span>
-              <span className="text-2xl font-extrabold text-indigo-400">{analytics.totalCapacity}</span>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-              <span className="text-slate-400 text-[10px] uppercase font-semibold block">System Occupancy Rate</span>
-              <span className="text-2xl font-extrabold text-amber-400">{analytics.occupancyRate}%</span>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-              <span className="text-slate-400 text-[10px] uppercase font-semibold block">Active Bookings</span>
-              <span className="text-2xl font-extrabold text-emerald-400">{analytics.activeReservations}</span>
-            </div>
+        {error && (
+          <div className="mb-6 rounded-md bg-red-950/30 border border-red-900/50 p-4 text-sm text-red-400">
+            {error}
           </div>
         )}
 
-        {/* Parking Management Table */}
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <h3 className="font-bold text-sm text-white flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-indigo-400" /> Registered Parking Locations (Neon DB)
-            </h3>
-            <button
-              onClick={loadData}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-
+        <div className="rounded-xl border border-[#262626] bg-[#171717] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800">
-                <tr>
-                  <th className="p-3.5">ID</th>
-                  <th className="p-3.5">Name</th>
-                  <th className="p-3.5">City & Address</th>
-                  <th className="p-3.5">Coordinates</th>
-                  <th className="p-3.5">Slots (Free / Total)</th>
-                  <th className="p-3.5 text-right">Actions</th>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-[#262626] bg-neutral-900/50">
+                  <th className="px-4 py-3 font-medium text-neutral-400">Name</th>
+                  <th className="px-4 py-3 font-medium text-neutral-400">Address</th>
+                  <th className="px-4 py-3 font-medium text-neutral-400">City</th>
+                  <th className="px-4 py-3 font-medium text-neutral-400">Slots (Total)</th>
+                  <th className="px-4 py-3 font-medium text-neutral-400">Coordinates</th>
+                  <th className="px-4 py-3 font-medium text-neutral-400 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
-                {parkings.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="p-3.5 font-bold text-indigo-400">#{p.id}</td>
-                    <td className="p-3.5 font-semibold text-white">{p.name}</td>
-                    <td className="p-3.5 text-slate-400">{p.address}, {p.city}</td>
-                    <td className="p-3.5 text-slate-400 font-mono text-[11px]">{p.latitude}, {p.longitude}</td>
-                    <td className="p-3.5 font-bold text-emerald-400">{p.available_slots} / {p.total_slots} Free</td>
-                    <td className="p-3.5 text-right flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setInspectorParkingId(p.id)}
-                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-semibold border border-slate-700"
-                      >
-                        Inspect Slots
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingParking(p);
-                          setIsAddModalOpen(true);
-                        }}
-                        className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete parking lot "${p.name}"?`)) handleDeleteParking(p.id);
-                        }}
-                        className="p-1.5 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+              <tbody className="divide-y divide-[#262626]">
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="px-4 py-8 text-center text-neutral-500">
+                      Loading locations...
                     </td>
                   </tr>
-                ))}
+                ) : parkings.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-4 py-8 text-center text-neutral-500">
+                      No parking locations found. Add one to get started.
+                    </td>
+                  </tr>
+                ) : (
+                  parkings.map((p) => (
+                    <tr key={p.id} className="hover:bg-neutral-900/30 transition-colors">
+                      <td className="px-4 py-3 font-medium">{p.name}</td>
+                      <td className="px-4 py-3 text-neutral-400">{p.address}</td>
+                      <td className="px-4 py-3 text-neutral-400">{p.city}</td>
+                      <td className="px-4 py-3 text-neutral-400">{p.total_slots}</td>
+                      <td className="px-4 py-3 text-neutral-400 font-mono text-xs">
+                        {p.latitude}, {p.longitude}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openEditModal(p)}
+                            className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded-md transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="p-1.5 text-neutral-400 hover:text-red-400 hover:bg-neutral-800 rounded-md transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
+      </div>
 
-        {/* ESP32 Hardware Integration Info Box */}
-        <div className="p-5 bg-slate-900 rounded-2xl border border-slate-800 space-y-3">
-          <h3 className="font-bold text-sm text-white flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-400" /> ESP32 Device Configuration
-          </h3>
-          <p className="text-xs text-slate-400">
-            Configure your ESP32 hardware node with this HTTP POST endpoint:
-          </p>
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-xs text-cyan-300 select-all">
-            POST https://iot-parking-system.onrender.com/updateParking
-          </div>
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
-            <span className="text-slate-500 block">// Header:</span>
-            <span>X-ESP32-API-KEY: default_esp32_secret_key_123</span>
-            <span className="text-slate-500 block pt-1">// JSON Payload:</span>
-            <span>{JSON.stringify({ parking_id: 1, slot_number: 1, is_occupied: true })}</span>
-          </div>
-        </div>
-
-      </main>
-
-      {/* Modals */}
-      <AddParkingModal
-        isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setEditingParking(null);
+      <AddParkingModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          setIsModalOpen(false);
+          fetchParkings();
         }}
-        onSuccess={() => loadData()}
         initialData={editingParking}
       />
-
-      <SlotDetailsModal
-        parkingId={inspectorParkingId}
-        isOpen={Boolean(inspectorParkingId)}
-        onClose={() => setInspectorParkingId(null)}
-        onSlotStateChanged={loadData}
-      />
-
     </div>
   );
 }

@@ -19,8 +19,8 @@
 // ----------------------------------------------------------------------------
 // Wi-Fi Credentials & Backend API Endpoint Configuration
 // ----------------------------------------------------------------------------
-const char* ssid = "YOUR_WIFI_SSID";          // Replace with your local Wi-Fi SSID
-const char* password = "YOUR_WIFI_PASSWORD";  // Replace with your local Wi-Fi Password
+const char* ssid = "Akash";          // Replace with your local Wi-Fi SSID
+const char* password = "12345678";  // Replace with your local Wi-Fi Password
 
 // Deployed Render Server Endpoint
 const char* serverUrl = "https://iot-parking-system.onrender.com/updateParking";

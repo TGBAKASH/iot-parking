@@ -71,16 +71,16 @@ export const parkingService = {
 };
 
 export const authService = {
-  login: async (credentials) => {
-    const response = await api.post('/api/auth/login', credentials);
+  login: async (email, password) => {
+    const response = await api.post('/api/auth/login', { email, password });
     if (response.data?.token) {
       localStorage.setItem('parking_auth_token', response.data.token);
     }
     return response.data;
   },
 
-  register: async (userData) => {
-    const response = await api.post('/api/auth/register', userData);
+  register: async (name, email, password) => {
+    const response = await api.post('/api/auth/register', { name, email, password });
     if (response.data?.token) {
       localStorage.setItem('parking_auth_token', response.data.token);
     }
