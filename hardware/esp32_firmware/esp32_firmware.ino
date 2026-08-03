@@ -12,6 +12,7 @@
 
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -59,15 +60,20 @@ void setup() {
   Serial.println("🤖 ESP32 Smart Parking System Initializing...");
   Serial.println("========================================================");
 
-  // Initialize LCD Screen
-  Wire.begin();
+  // Initialize LCD Screen with explicit ESP32 I2C pins (SDA=21, SCL=22)
+  Wire.begin(21, 22);
+  delay(100);
+  
   lcd.init();
+  lcd.begin(16, 2);
   lcd.backlight();
   lcd.clear();
+  delay(100);
+  
   lcd.setCursor(0, 0);
-  lcd.print("Smart Parking System");
+  lcd.print("Smart Parking");
   lcd.setCursor(0, 1);
-  lcd.print("Connecting WiFi...");
+  lcd.print("WiFi Connecting..");
 
   // Configure IR sensor pins as digital inputs
   pinMode(SLOT_1_PIN, INPUT);
@@ -179,8 +185,12 @@ void sendSlotStatusToBackend(int slotNumber, bool isOccupied) {
     return;
   }
 
+  WiFiClientSecure client;
+  client.setInsecure(); // Skip strict SSL cert validation for Render HTTPS endpoint
+
   HTTPClient http;
-  http.begin(serverUrl);
+  http.begin(client, serverUrl);
+  http.setTimeout(15000); // 15s timeout
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-ESP32-API-KEY", apiKey);
 
