@@ -1,13 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Compass, ExternalLink, MapPin } from 'lucide-react';
+import { Compass, MapPin } from 'lucide-react';
 
 /**
- * MapView Component (Leaflet + OpenStreetMap + CartoDB Dark Tiles)
- * - Renders User GPS Location with high-visibility blue puck & pulsing ring.
- * - Auto-pans and centers on User Location when detected.
- * - Custom markers for parking locations with Google Maps navigation links.
+ * MapView Component (Fixed Leaflet Map - No Glitching, Smooth GPS Centering)
  */
 export default function MapView({
   parkings,
@@ -19,14 +16,16 @@ export default function MapView({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersGroupRef = useRef(null);
+  const userMarkerRef = useRef(null);
 
-  // Initialize Leaflet map
+  // 1. Initialize Leaflet map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      const initialLat = userLocation ? userLocation.lat : 37.774929;
-      const initialLng = userLocation ? userLocation.lng : -122.419416;
+      // Default to user location if already present, otherwise fallback
+      const initialLat = userLocation ? userLocation.lat : 10.9541;
+      const initialLng = userLocation ? userLocation.lng : 78.7589;
 
       const map = L.map(mapContainerRef.current, {
         center: [initialLat, initialLng],
@@ -46,6 +45,11 @@ export default function MapView({
       const markersGroup = L.layerGroup().addTo(map);
       markersGroupRef.current = markersGroup;
       mapInstanceRef.current = map;
+
+      // Invalidate size to fix tile rendering/glitching bugs
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 250);
     }
 
     return () => {
@@ -56,26 +60,49 @@ export default function MapView({
     };
   }, []);
 
-  // Update map layers and markers
+  // 2. Center map when userLocation changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    map.invalidateSize();
+
+    if (userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
+      map.flyTo([userLocation.lat, userLocation.lng], 14, { duration: 1.2 });
+    }
+  }, [userLocation?.lat, userLocation?.lng]);
+
+  // 3. Center map when explicit parking card is selected by user
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !selectedParking) return;
+
+    const lat = parseFloat(selectedParking.latitude);
+    const lng = parseFloat(selectedParking.longitude);
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      map.flyTo([lat, lng], 15, { duration: 1 });
+    }
+  }, [selectedParking?.id, selectedParking?.latitude, selectedParking?.longitude]);
+
+  // 4. Update markers group (User Puck & Parking Pins)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const markersGroup = markersGroupRef.current;
     if (!map || !markersGroup) return;
 
     markersGroup.clearLayers();
-    const bounds = L.latLngBounds();
 
-    // 1. Add High-Visibility User GPS Location Marker
+    // Add High-Visibility User GPS Puck
     if (userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
       const userLatLng = [userLocation.lat, userLocation.lng];
-      bounds.extend(userLatLng);
 
       const userIcon = L.divIcon({
         className: 'user-gps-marker',
         html: `
           <div class="relative flex items-center justify-center w-10 h-10">
             <span class="absolute w-10 h-10 rounded-full bg-blue-500/40 animate-ping"></span>
-            <span class="relative w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-xl flex items-center justify-center">
+            <span class="relative w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-2xl flex items-center justify-center">
               <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
             </span>
           </div>
@@ -97,14 +124,11 @@ export default function MapView({
       markersGroup.addLayer(userMarker);
     }
 
-    // 2. Add Parking Lot Markers
+    // Add Parking Location Markers
     parkings.forEach((parking) => {
       const lat = parseFloat(parking.latitude);
       const lng = parseFloat(parking.longitude);
       if (isNaN(lat) || isNaN(lng)) return;
-
-      const latLng = [lat, lng];
-      bounds.extend(latLng);
 
       const isAvailable = parseInt(parking.available_slots, 10) > 0;
       const isSelected = selectedParking && selectedParking.id === parking.id;
@@ -115,7 +139,7 @@ export default function MapView({
       const customPinIcon = L.divIcon({
         className: 'parking-pin-marker',
         html: `
-          <div class="relative flex items-center justify-center transform transition-transform ${borderStyle}" style="
+          <div class="relative flex items-center justify-center ${borderStyle}" style="
             background-color: ${pinColor};
             width: 36px;
             height: 36px;
@@ -184,7 +208,7 @@ export default function MapView({
         </div>
       `;
 
-      const marker = L.marker(latLng, { icon: customPinIcon })
+      const marker = L.marker([lat, lng], { icon: customPinIcon })
         .bindPopup(popupHtml, { className: 'custom-leaflet-popup' })
         .on('click', () => {
           if (onSelectParking) onSelectParking(parking);
@@ -196,23 +220,14 @@ export default function MapView({
         marker.openPopup();
       }
     });
-
-    // Auto-pan to selected parking or center on user location
-    if (selectedParking && !isNaN(selectedParking.latitude)) {
-      map.flyTo([parseFloat(selectedParking.latitude), parseFloat(selectedParking.longitude)], 15, { duration: 1 });
-    } else if (userLocation && !isNaN(userLocation.lat)) {
-      map.flyTo([userLocation.lat, userLocation.lng], 14, { duration: 1 });
-    } else if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-    }
   }, [parkings, selectedParking, userLocation]);
 
-  // Center map on user GPS location
   const handleCenterUser = () => {
-    if (userLocation && mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 15, { duration: 1.2 });
-    }
     if (onRequestUserLocation) onRequestUserLocation();
+    if (userLocation && mapInstanceRef.current) {
+      mapInstanceRef.current.invalidateSize();
+      mapInstanceRef.current.flyTo([userLocation.lat, userLocation.lng], 15, { duration: 1 });
+    }
   };
 
   return (
@@ -233,7 +248,7 @@ export default function MapView({
       {/* Top Floating Badge */}
       <div className="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300 font-medium flex items-center gap-2 shadow-md">
         <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-        <span>OpenStreetMap + OSRM Driving Machine</span>
+        <span>Live GPS Map Active</span>
       </div>
 
     </div>

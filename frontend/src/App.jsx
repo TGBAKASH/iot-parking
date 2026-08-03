@@ -65,13 +65,12 @@ export default function App() {
         },
         (error) => {
           console.warn('Geolocation fallback:', error.message);
-          // Default fallback location if GPS denied
-          setUserLocation({ lat: 28.6139, lng: 77.2090 }); // Default Delhi/Local fallback
+          setUserLocation({ lat: 10.9541, lng: 78.7589 });
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setUserLocation({ lat: 28.6139, lng: 77.2090 });
+      setUserLocation({ lat: 10.9541, lng: 78.7589 });
     }
   };
 
@@ -82,9 +81,6 @@ export default function App() {
       const res = await parkingService.getAllParkings();
       if (res.success && res.data) {
         setParkings(res.data);
-        if (res.data.length > 0 && !selectedParking) {
-          setSelectedParking(res.data[0]);
-        }
       }
     } catch (err) {
       console.error('Failed to load parkings:', err);
@@ -148,7 +144,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Calculate OSRM driving distance & adjust nearby coordinates if needed
+  // 3. Calculate OSRM driving distance & adapt coordinates relative to user GPS location
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
 
@@ -158,12 +154,11 @@ export default function App() {
       let minMeters = Infinity;
       let closestId = null;
 
-      // Check if all parking locations in DB are far away (> 500 km) from user's current GPS location
+      // Check if DB locations are far from user location
       const firstLat = parseFloat(parkings[0].latitude);
       const firstLng = parseFloat(parkings[0].longitude);
       const approxDistKm = Math.hypot(firstLat - userLocation.lat, firstLng - userLocation.lng) * 111;
 
-      // If user is far from default DB locations, adapt coordinates relative to user's live GPS
       const isFarAway = approxDistKm > 500;
 
       const updatedList = await Promise.all(
@@ -171,7 +166,7 @@ export default function App() {
           let targetLat = parseFloat(p.latitude);
           let targetLng = parseFloat(p.longitude);
 
-          // If far away, generate realistic nearby offset relative to user GPS (0.5km to 3km)
+          // If default DB locations are far from user, project them near user's live city (0.5km to 3km)
           if (isFarAway) {
             const offsets = [
               [0.008, 0.006],
@@ -220,7 +215,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [userLocation, parkings.length]);
+  }, [userLocation?.lat, userLocation?.lng, parkings.length]);
 
   const handleSearchCitySubmit = async (cityName) => {
     if (!cityName) return;
