@@ -38,8 +38,8 @@ const int SLOT_2_PIN = 5;
 const int SLOT_3_PIN = 18;
 const int SLOT_4_PIN = 19;
 
-// Initialize 16x2 I2C LCD (Address 0x27 or 0x3F)
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+// Initialize 16x2 I2C LCD (Address 0x3F)
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 // Store previous state of slots to send HTTP requests ONLY when state changes
 bool lastStateSlot1 = false;
