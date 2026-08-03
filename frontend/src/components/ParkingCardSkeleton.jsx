@@ -1,13 +1,14 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, Layers, Edit3, Trash2, Zap, CheckCircle2 } from 'lucide-react';
+import { MapPin, Navigation, Clock, Layers, Edit3, Trash2, Zap, ExternalLink, Award } from 'lucide-react';
 
 /**
- * ParkingCardSkeleton Component (Milestone 2 Production Version)
- * Renders individual parking lot card showing:
+ * ParkingCardSkeleton Component (Milestone 3 Production Version)
+ * Displays:
  * - Parking Name, Address & City
+ * - Distance & Estimated Travel Time calculated via OSRM Routes API
+ * - "Nearest Parking" badge based on actual driving distance
  * - Total, Available, and Occupied slots
- * - Inspector trigger to view individual sensor slots (Slot 1, Slot 2...)
- * - Admin Edit & Delete actions
+ * - View Slots inspector button & "Navigate with Google Maps" deep-link button
  */
 export default function ParkingCardSkeleton({
   parking,
@@ -18,8 +19,9 @@ export default function ParkingCardSkeleton({
   onDelete,
   onSimulateESP32,
   user,
+  isNearest,
 }) {
-  const { id, name, address, city, total_slots, available_slots, occupied_slots } = parking;
+  const { id, name, address, city, latitude, longitude, total_slots, available_slots, occupied_slots, distanceText, durationText } = parking;
 
   const total = parseInt(total_slots, 10) || 1;
   const available = parseInt(available_slots, 10) || 0;
@@ -34,6 +36,8 @@ export default function ParkingCardSkeleton({
     statusColorClass = 'text-amber-400 border-amber-500/30 bg-amber-950/20';
   }
 
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+
   return (
     <div
       onClick={() => onSelect && onSelect(parking)}
@@ -43,6 +47,13 @@ export default function ParkingCardSkeleton({
           : 'border-slate-800 hover:border-slate-700'
       }`}
     >
+      {/* Nearest Parking Badge Header */}
+      {isNearest && (
+        <div className="mb-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">
+          <Award className="w-3 h-3 text-amber-400" /> Nearest Parking (by Driving Distance)
+        </div>
+      )}
+
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
@@ -85,22 +96,22 @@ export default function ParkingCardSkeleton({
         </div>
       </div>
 
-      {/* Driving Distance & Time Placeholders */}
+      {/* OSRM Driving Distance & Travel Time Calculator Display */}
       <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-3 mb-4">
         <div className="flex items-center gap-1">
           <Navigation className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Distance: <strong className="text-slate-200">1.8 km</strong></span>
+          <span>Driving Distance: <strong className="text-cyan-300 font-bold">{distanceText || 'Calculating...'}</strong></span>
         </div>
         <div className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-amber-400" />
-          <span>Est. Time: <strong className="text-slate-200">5 mins</strong></span>
+          <span>Est. Time: <strong className="text-amber-300 font-bold">{durationText || 'Calculating...'}</strong></span>
         </div>
       </div>
 
       {/* Action Buttons Row */}
       <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800/80">
         
-        {/* View Individual Slots Inspector Button */}
+        {/* View Individual Slots Inspector */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -110,6 +121,17 @@ export default function ParkingCardSkeleton({
         >
           <Layers className="w-3.5 h-3.5 text-cyan-400" /> View Slots
         </button>
+
+        {/* Navigate with Google Maps */}
+        <a
+          href={googleMapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md shadow-blue-500/20"
+        >
+          <ExternalLink className="w-3.5 h-3.5" /> Navigate
+        </a>
 
         {/* Admin Edit / Delete Actions */}
         {user && user.role === 'admin' && (
