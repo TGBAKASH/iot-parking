@@ -62,8 +62,22 @@ void setup() {
 
   // Initialize LCD Screen with explicit ESP32 I2C pins (SDA=21, SCL=22)
   Wire.begin(21, 22);
-  delay(100);
-  
+  delay(200);
+
+  // Auto-scan I2C bus to find exact LCD address
+  Serial.println("🔍 Scanning I2C bus for LCD address...");
+  byte lcdAddress = 0;
+  for (byte address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("✨ FOUND I2C DEVICE AT ADDRESS: 0x%02X\n", address);
+      lcdAddress = address;
+    }
+  }
+  if (lcdAddress == 0) {
+    Serial.println("⚠️ No I2C LCD device found at SDA=21, SCL=22.");
+  }
+
   lcd.init();
   lcd.begin(16, 2);
   lcd.backlight();
