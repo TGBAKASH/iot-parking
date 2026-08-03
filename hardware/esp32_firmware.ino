@@ -1,34 +1,32 @@
 /*
  * ============================================================================
- * ESP32 + IR SENSORS SMART PARKING FIRMWARE
+ * ESP32 + IR SENSORS + 16x2 LCD DISPLAY SMART PARKING FIRMWARE
  * ============================================================================
- * Hardware Required:
- * 1. ESP32 NodeMCU Development Board
- * 2. IR Sensor Modules (FC-51 or active IR obstacle sensors)
- * 3. Jumper Wires & Breadboard / PCB
- * 
- * Pin Configuration:
- * - IR Sensor Slot 1 Output -> ESP32 GPIO 4
- * - IR Sensor Slot 2 Output -> ESP32 GPIO 5
- * - IR Sensor Slot 3 Output -> ESP32 GPIO 18
- * - IR Sensor Slot 4 Output -> ESP32 GPIO 19
- * - IR Sensor VCC -> ESP32 3.3V / 5V
- * - IR Sensor GND -> ESP32 GND
+ * Hardware Component Overview (Matches PCB Kit):
+ * 1. ESP32 NodeMCU Development Board (Center 30-pin microcontroller)
+ * 2. 16x2 Character LCD Display (Top screen)
+ * 3. IR Sensor Modules (Active low obstacle sensors)
+ * 4. Relay Module & LEDs
  * ============================================================================
  */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
 // ----------------------------------------------------------------------------
 // Wi-Fi Credentials & Backend API Endpoint Configuration
 // ----------------------------------------------------------------------------
-const char* ssid = "YOUR_WIFI_SSID";          // Replace with your Wi-Fi SSID
-const char* password = "YOUR_WIFI_PASSWORD";  // Replace with your Wi-Fi Password
+const char* ssid = "YOUR_WIFI_SSID";          // Replace with your local Wi-Fi SSID
+const char* password = "YOUR_WIFI_PASSWORD";  // Replace with your local Wi-Fi Password
 
-// URL of your deployed Render backend (or local backend IP during testing e.g. http://192.168.1.100:5000/updateParking)
-const char* serverUrl = "https://your-render-backend-url.onrender.com/updateParking";
+// Deployed Render Server Endpoint
+const char* serverUrl = "https://iot-parking-system.onrender.com/updateParking";
+
+// Secret ESP32 Header Key for Security
+const char* apiKey = "default_esp32_secret_key_123";
 
 // Target Parking Lot ID registered in PostgreSQL database
 const int PARKING_ID = 1;
@@ -39,6 +37,9 @@ const int SLOT_2_PIN = 5;
 const int SLOT_3_PIN = 18;
 const int SLOT_4_PIN = 19;
 
+// Initialize 16x2 I2C LCD (Address 0x27 or 0x3F)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
 // Store previous state of slots to send HTTP requests ONLY when state changes
 bool lastStateSlot1 = false;
 bool lastStateSlot2 = false;
@@ -47,6 +48,7 @@ bool lastStateSlot4 = false;
 
 // Function Prototypes
 void connectToWiFi();
+void updateLCDDisplay(int freeSlots);
 void sendSlotStatusToBackend(int slotNumber, bool isOccupied);
 
 void setup() {
@@ -54,8 +56,18 @@ void setup() {
   delay(1000);
 
   Serial.println("\n========================================================");
-  Serial.println("🤖 ESP32 Smart Parking Sensor Node Initializing...");
+  Serial.println("🤖 ESP32 Smart Parking System Initializing...");
   Serial.println("========================================================");
+
+  // Initialize LCD Screen
+  Wire.begin();
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Smart Parking System");
+  lcd.setCursor(0, 1);
+  lcd.print("Connecting WiFi...");
 
   // Configure IR sensor pins as digital inputs
   pinMode(SLOT_1_PIN, INPUT);
@@ -65,6 +77,11 @@ void setup() {
 
   // Connect to Wi-Fi network
   connectToWiFi();
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("System Active!");
+  delay(1500);
 }
 
 void loop() {
@@ -73,11 +90,18 @@ void loop() {
     connectToWiFi();
   }
 
-  // Read IR Sensors (Active LOW sensors: LOW = Obstacle/Car Present, HIGH = Slot Empty)
+  // Read IR Sensors (Active LOW sensors: LOW = Car Present/Occupied, HIGH = Slot Free)
   bool currentStateSlot1 = (digitalRead(SLOT_1_PIN) == LOW);
   bool currentStateSlot2 = (digitalRead(SLOT_2_PIN) == LOW);
   bool currentStateSlot3 = (digitalRead(SLOT_3_PIN) == LOW);
   bool currentStateSlot4 = (digitalRead(SLOT_4_PIN) == LOW);
+
+  // Calculate free slots
+  int occupiedCount = (currentStateSlot1 ? 1 : 0) + (currentStateSlot2 ? 1 : 0) + (currentStateSlot3 ? 1 : 0) + (currentStateSlot4 ? 1 : 0);
+  int freeSlots = 4 - occupiedCount;
+
+  // Update physical 16x2 LCD display
+  updateLCDDisplay(freeSlots);
 
   // Slot 1 State Change Detection
   if (currentStateSlot1 != lastStateSlot1) {
@@ -107,7 +131,7 @@ void loop() {
     lastStateSlot4 = currentStateSlot4;
   }
 
-  delay(500); // Check sensor pins every 500ms
+  delay(300); // Check sensor pins every 300ms
 }
 
 /**
@@ -135,6 +159,18 @@ void connectToWiFi() {
 }
 
 /**
+ * Updates physical 16x2 LCD display screen
+ */
+void updateLCDDisplay(int freeSlots) {
+  lcd.setCursor(0, 0);
+  lcd.print("Smart Parking Hub");
+  lcd.setCursor(0, 1);
+  lcd.print("Free Slots: ");
+  lcd.print(freeSlots);
+  lcd.print("/4  ");
+}
+
+/**
  * Sends HTTP POST request to backend /updateParking endpoint
  */
 void sendSlotStatusToBackend(int slotNumber, bool isOccupied) {
@@ -146,6 +182,7 @@ void sendSlotStatusToBackend(int slotNumber, bool isOccupied) {
   HTTPClient http;
   http.begin(serverUrl);
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ESP32-API-KEY", apiKey);
 
   // Construct JSON Payload: { "parking_id": 1, "slot_number": 1, "is_occupied": true }
   StaticJsonDocument<200> jsonDoc;
@@ -156,7 +193,7 @@ void sendSlotStatusToBackend(int slotNumber, bool isOccupied) {
   String jsonString;
   serializeJson(jsonDoc, jsonString);
 
-  Serial.print("🚀 Sending Payload to Backend: ");
+  Serial.print("🚀 Sending Payload to Cloud Backend: ");
   Serial.println(jsonString);
 
   int httpResponseCode = http.POST(jsonString);
@@ -164,7 +201,6 @@ void sendSlotStatusToBackend(int slotNumber, bool isOccupied) {
   if (httpResponseCode > 0) {
     String response = http.getString();
     Serial.printf("✅ Server HTTP Response Code: %d\n", httpResponseCode);
-    Serial.println("Response: " + response);
   } else {
     Serial.printf("❌ Error Sending HTTP POST: %s\n", http.errorToString(httpResponseCode).c_str());
   }
