@@ -60,28 +60,41 @@ void setup() {
   Serial.println("🤖 ESP32 Smart Parking System Initializing...");
   Serial.println("========================================================");
 
-  // Initialize LCD Screen with explicit ESP32 I2C pins (SDA=21, SCL=22)
-  Wire.begin(21, 22);
-  delay(200);
+  // Scan common ESP32 I2C pin pairs
+  int pinPairs[][2] = {
+    {21, 22}, {13, 14}, {26, 27}, {16, 17}, {4, 5}, {32, 33}, {18, 19}
+  };
+  
+  byte foundAddress = 0;
+  int foundSDA = -1, foundSCL = -1;
 
-  // Auto-scan I2C bus to find exact LCD address
-  Serial.println("🔍 Scanning I2C bus for LCD address...");
-  byte lcdAddress = 0;
-  for (byte address = 1; address < 127; address++) {
-    Wire.beginTransmission(address);
-    if (Wire.endTransmission() == 0) {
-      Serial.printf("✨ FOUND I2C DEVICE AT ADDRESS: 0x%02X\n", address);
-      lcdAddress = address;
+  for (int i = 0; i < 7; i++) {
+    int sda = pinPairs[i][0];
+    int scl = pinPairs[i][1];
+    Wire.begin(sda, scl);
+    delay(50);
+    
+    for (byte addr = 1; addr < 127; addr++) {
+      Wire.beginTransmission(addr);
+      if (Wire.endTransmission() == 0) {
+        Serial.printf("✨ FOUND I2C DEVICE AT ADDRESS 0x%02X ON PINS SDA=%d, SCL=%d!\n", addr, sda, scl);
+        foundAddress = addr;
+        foundSDA = sda;
+        foundSCL = scl;
+      }
     }
   }
-  if (lcdAddress == 0) {
-    Serial.println("⚠️ No I2C LCD device found at SDA=21, SCL=22.");
-  }
 
-  lcd.init();
-  lcd.begin(16, 2);
-  lcd.backlight();
-  lcd.clear();
+  if (foundAddress != 0) {
+    Wire.begin(foundSDA, foundSCL);
+    lcd = LiquidCrystal_I2C(foundAddress, 16, 2);
+    lcd.init();
+    lcd.begin(16, 2);
+    lcd.backlight();
+    lcd.clear();
+  } else {
+    Serial.println("⚠️ No I2C LCD found on any pins. LCD is wired in Parallel 4-bit mode.");
+  }
   delay(100);
   
   lcd.setCursor(0, 0);
