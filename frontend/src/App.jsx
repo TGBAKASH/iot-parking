@@ -391,18 +391,9 @@ export default function App() {
         onClose={() => setIsAnalyticsOpen(false)}
       />
 
-      {/* Footer with link to Secret Admin Panel */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+      {/* Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
         <p>Smart Parking System - ESP32 IoT & Full-Stack Solution</p>
-        <button
-          onClick={() => {
-            window.history.pushState({}, '', '/sec-admin-panel');
-            setCurrentPath('/sec-admin-panel');
-          }}
-          className="text-slate-600 hover:text-slate-400 text-[11px] flex items-center gap-1 transition-colors"
-        >
-          <ShieldAlert className="w-3 h-3 text-amber-500/60" /> Secret Admin Portal (/sec-admin-panel)
-        </button>
       </footer>
 
     </div>

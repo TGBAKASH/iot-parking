@@ -1,10 +1,10 @@
 import React from 'react';
 import ParkingCardSkeleton from './ParkingCardSkeleton';
-import { Search, MapPin, SlidersHorizontal, RefreshCw, Plus, Compass } from 'lucide-react';
+import { Search, MapPin, SlidersHorizontal, RefreshCw, Compass } from 'lucide-react';
 
 /**
- * DashboardSkeleton Component (Clean, Simple Human Design)
- * Search box, location button, and parking cards grid.
+ * DashboardSkeleton Component (Clean Public Driver Interface)
+ * 100% Confidential - Zero Admin references in public UI.
  */
 export default function DashboardSkeleton({
   parkings,
@@ -17,10 +17,6 @@ export default function DashboardSkeleton({
   onSimulateESP32,
   onOpenSlotsInspector,
   onOpenReserve,
-  onEditParking,
-  onDeleteParking,
-  onOpenAddParking,
-  user,
   loading,
   nearestParkingId,
 }) {
@@ -70,15 +66,6 @@ export default function DashboardSkeleton({
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-medium">
             <span>Showing: <strong className="text-white">{parkings.length}</strong> Locations</span>
           </div>
-
-          {user && user.role === 'admin' && (
-            <button
-              onClick={onOpenAddParking}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Lot
-            </button>
-          )}
         </div>
 
       </div>
@@ -103,10 +90,7 @@ export default function DashboardSkeleton({
               onSelect={onSelectParking}
               onOpenSlotsInspector={onOpenSlotsInspector}
               onOpenReserve={onOpenReserve}
-              onEdit={onEditParking}
-              onDelete={onDeleteParking}
               onSimulateESP32={onSimulateESP32}
-              user={user}
               isNearest={parking.id === nearestParkingId}
             />
           ))}

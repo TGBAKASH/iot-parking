@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, KeyRound, ShieldAlert } from 'lucide-react';
+import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, KeyRound } from 'lucide-react';
 import { authService } from '../services/api';
 
 /**
- * AuthModal Component (Clean Email & Password Registration & Login)
- * Completely removed demo credentials.
+ * AuthModal Component (Clean Public User Registration & Login)
+ * 100% Confidential - Zero Admin references in public UI.
  */
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -36,7 +36,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         setError(res.message || 'Authentication failed.');
       }
     } catch (err) {
-      const serverMessage = err.response?.data?.message || 'Authentication failed. Please check credentials.';
+      const serverMessage = err.response?.data?.message || 'Connection error. Please try again.';
       setError(serverMessage);
     } finally {
       setLoading(false);
@@ -148,7 +148,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         </form>
 
         {/* Toggle Register / Login */}
-        <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+        <div className="mt-4 pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
           {isRegister ? (
             <p>
               Already have an account?{' '}
@@ -170,13 +170,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </button>
             </p>
           )}
-
-          <a
-            href="/sec-admin-panel"
-            className="text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium hover:underline text-[11px]"
-          >
-            <ShieldAlert className="w-3 h-3 text-amber-400" /> Admin Portal
-          </a>
         </div>
 
       </div>

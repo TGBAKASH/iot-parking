@@ -1,16 +1,15 @@
 import React from 'react';
-import { Car, Radio, User, LogIn, LogOut, Plus, BarChart3, RefreshCw } from 'lucide-react';
+import { Car, Radio, User, LogIn, LogOut, BarChart3, RefreshCw } from 'lucide-react';
 
 /**
- * Navbar Component (Clean, Simple Human Design)
- * Clean header with live status dot, email login button, and controls.
+ * Navbar Component (Clean Public Driver Interface)
+ * 100% Confidential - Zero Admin references in public UI.
  */
 export default function Navbar({
   isConnected,
   user,
   onOpenAuth,
   onLogout,
-  onOpenAddParking,
   onOpenAnalytics,
   onRefresh,
 }) {
@@ -62,25 +61,12 @@ export default function Navbar({
             <span className="hidden sm:inline">Analytics</span>
           </button>
 
-          {/* Add Parking (Admin Only) */}
-          {user && user.role === 'admin' && (
-            <button
-              onClick={onOpenAddParking}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" /> Add Lot
-            </button>
-          )}
-
           {/* User Email Login / Profile Badge */}
           {user ? (
             <div className="flex items-center space-x-1.5">
               <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200">
                 <User className="w-3.5 h-3.5 text-indigo-400" />
                 <span className="font-semibold hidden sm:inline">{user.email || user.name}</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 font-bold uppercase">
-                  {user.role}
-                </span>
               </div>
 
               <button

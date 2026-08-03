@@ -1,9 +1,9 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, Layers, Edit3, Trash2, Zap, ExternalLink, Award, Calendar } from 'lucide-react';
+import { MapPin, Navigation, Clock, Layers, Zap, ExternalLink, Award, Calendar } from 'lucide-react';
 
 /**
- * ParkingCardSkeleton Component (Clean, Simple Human Design)
- * Renders individual parking lot details, driving metrics, and slot counters cleanly.
+ * ParkingCardSkeleton Component (Clean Public View)
+ * 100% Confidential - Zero Admin references in public UI.
  */
 export default function ParkingCardSkeleton({
   parking,
@@ -11,10 +11,7 @@ export default function ParkingCardSkeleton({
   isSelected,
   onOpenSlotsInspector,
   onOpenReserve,
-  onEdit,
-  onDelete,
   onSimulateESP32,
-  user,
   isNearest,
 }) {
   const { id, name, address, city, latitude, longitude, total_slots, available_slots, occupied_slots, distanceText, durationText } = parking;
@@ -113,9 +110,9 @@ export default function ParkingCardSkeleton({
             e.stopPropagation();
             onOpenSlotsInspector && onOpenSlotsInspector(id);
           }}
-          className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+          className="flex-1 py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
         >
-          <Layers className="w-3.5 h-3.5 text-indigo-400" /> Slots
+          <Layers className="w-3.5 h-3.5 text-indigo-400" /> View Slots
         </button>
 
         {/* Reserve Slot Button */}
@@ -124,9 +121,9 @@ export default function ParkingCardSkeleton({
             e.stopPropagation();
             onOpenReserve && onOpenReserve(parking);
           }}
-          className="py-1.5 px-3 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/80 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+          className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/80 text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
         >
-          <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Reserve
+          <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Reserve Slot
         </button>
 
         {/* Navigate with Google Maps */}
@@ -140,40 +137,12 @@ export default function ParkingCardSkeleton({
           <ExternalLink className="w-3.5 h-3.5" /> Navigate
         </a>
 
-        {/* Admin Edit / Delete Actions */}
-        {user && user.role === 'admin' && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit && onEdit(parking);
-              }}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/60"
-              title="Edit"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm(`Delete parking lot "${name}"?`)) {
-                  onDelete && onDelete(id);
-                }
-              }}
-              className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 transition-colors border border-rose-800/60"
-              title="Delete"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
       </div>
 
       {/* Quick Test ESP32 Trigger */}
       <div className="mt-3 pt-2.5 border-t border-slate-800/50 flex items-center justify-between">
         <span className="text-[10px] text-slate-400 flex items-center gap-1">
-          <Zap className="w-3 h-3 text-amber-400" /> Test ESP32 Post:
+          <Zap className="w-3 h-3 text-amber-400" /> Test Sensor Post:
         </span>
         <div className="flex gap-1.5">
           <button
