@@ -26,6 +26,9 @@ const initializeSocketHandlers = require('./sockets/socketHandler');
 const app = express();
 const server = http.createServer(app);
 
+// Enable trust proxy for Render reverse proxy environment
+app.set('trust proxy', 1);
+
 // Configure Rate Limiting to prevent DoS & Brute Force attacks
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes window
