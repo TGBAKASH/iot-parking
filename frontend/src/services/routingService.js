@@ -4,17 +4,14 @@
 // Requires NO credit card, NO Google account, and NO API keys. 100% Free!
 // 1. fetchDrivingDistance: Uses OSRM to calculate exact road driving distance & time.
 // 2. searchCityGeocode: Uses Nominatim to search any city and get lat/lng coordinates.
+// 3. fetchIPLocation: Uses free IP geolocation to detect user's actual city automatically.
+// 4. reverseGeocode: Converts lat/lng coordinates into real local city & street names.
 // ============================================================================
 
 import axios from 'axios';
 
 /**
  * Calculate driving distance and travel time using Open Source Routing Machine (OSRM).
- * @param {number} userLat - User latitude
- * @param {number} userLng - User longitude
- * @param {number} parkingLat - Parking location latitude
- * @param {number} parkingLng - Parking location longitude
- * @returns {Promise<{distanceKm: string, durationMins: string, rawMeters: number}>}
  */
 export const fetchDrivingDistanceAndDuration = async (userLat, userLng, parkingLat, parkingLng) => {
   try {
@@ -39,7 +36,7 @@ export const fetchDrivingDistanceAndDuration = async (userLat, userLng, parkingL
     console.warn('OSRM routing fetch warning, fallback straight line distance:', error.message);
   }
 
-  // Fallback Haversine straight-line distance calculation if offline
+  // Fallback Haversine straight-line distance calculation
   const R = 6371; // Earth radius in km
   const dLat = ((parkingLat - userLat) * Math.PI) / 180;
   const dLon = ((parkingLng - userLng) * Math.PI) / 180;
@@ -62,8 +59,6 @@ export const fetchDrivingDistanceAndDuration = async (userLat, userLng, parkingL
 
 /**
  * Search any city name and return geographic coordinates using Nominatim API.
- * @param {string} cityName - Name of city (e.g. "San Francisco", "New York")
- * @returns {Promise<{lat: number, lng: number, displayName: string} | null>}
  */
 export const searchCityGeocode = async (cityName) => {
   try {
@@ -88,4 +83,60 @@ export const searchCityGeocode = async (cityName) => {
     console.error('Nominatim geocoding error:', error);
   }
   return null;
+};
+
+/**
+ * Detect user's location via free IP Geolocation when GPS is unavailable.
+ */
+export const fetchIPLocation = async () => {
+  try {
+    const res = await axios.get('https://ipapi.co/json/');
+    if (res.data && res.data.latitude && res.data.longitude) {
+      return {
+        lat: res.data.latitude,
+        lng: res.data.longitude,
+        city: res.data.city || 'Local City',
+      };
+    }
+  } catch (err) {
+    console.warn('IP geocoding primary fallback warning:', err.message);
+  }
+
+  // Backup IP Geocoder
+  try {
+    const res = await axios.get('https://ipwho.is/');
+    if (res.data && res.data.success && res.data.latitude && res.data.longitude) {
+      return {
+        lat: res.data.latitude,
+        lng: res.data.longitude,
+        city: res.data.city || 'Local City',
+      };
+    }
+  } catch (err) {
+    console.warn('IP geocoding secondary fallback warning:', err.message);
+  }
+
+  return null;
+};
+
+/**
+ * Reverse geocode lat/lng into local city and road name using Nominatim API.
+ */
+export const reverseGeocode = async (lat, lng) => {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const response = await axios.get(url, {
+      headers: { 'Accept-Language': 'en' },
+    });
+
+    if (response.data && response.data.address) {
+      const addr = response.data.address;
+      const city = addr.city || addr.town || addr.suburb || addr.county || 'Local Area';
+      const road = addr.road || addr.neighbourhood || addr.suburb || 'Central District';
+      return { city, road };
+    }
+  } catch (err) {
+    console.warn('Reverse geocoding error:', err.message);
+  }
+  return { city: 'Local Area', road: 'Main Street' };
 };

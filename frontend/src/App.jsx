@@ -9,12 +9,14 @@ import ReservationModal from './components/ReservationModal';
 import AnalyticsModal from './components/AnalyticsModal';
 import SecretAdminPanel from './components/SecretAdminPanel';
 import { parkingService, authService } from './services/api';
-import { fetchDrivingDistanceAndDuration, searchCityGeocode } from './services/routingService';
+import { fetchDrivingDistanceAndDuration, searchCityGeocode, fetchIPLocation, reverseGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
 import { Layers, MapPin, Zap, Info, Compass, BarChart3, Calendar } from 'lucide-react';
 
 /**
- * Main App Component (Clean Modern Design + Auto Nearby GPS Localizer)
+ * Main App Component (Global Dynamic GPS Localizer)
+ * - Automatically detects user location (Browser GPS or IP Geolocation).
+ * - Dynamically projects parking locations right in the user's local city/area.
  */
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -25,8 +27,9 @@ export default function App() {
   const [searchCity, setSearchCity] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // User location state (GPS)
+  // User location state (GPS or IP)
   const [userLocation, setUserLocation] = useState(null);
+  const [userCityInfo, setUserCityInfo] = useState({ city: 'Local Area', road: 'Main Street' });
   const [nearestParkingId, setNearestParkingId] = useState(null);
 
   // User auth state
@@ -50,11 +53,11 @@ export default function App() {
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
-  // Request Browser Geolocation
-  const requestUserLocation = () => {
+  // Request Geolocation or IP Location
+  const requestUserLocation = async () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const loc = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
@@ -62,15 +65,30 @@ export default function App() {
           setUserLocation(loc);
           setStatusNotification(`📍 GPS Location Acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           setTimeout(() => setStatusNotification(null), 4000);
+
+          const cityInfo = await reverseGeocode(loc.lat, loc.lng);
+          if (cityInfo) setUserCityInfo(cityInfo);
         },
-        (error) => {
-          console.warn('Geolocation fallback:', error.message);
-          setUserLocation({ lat: 10.9541, lng: 78.7589 });
+        async (error) => {
+          console.warn('Browser GPS permission unavailable, falling back to IP Geolocation:', error.message);
+          const ipLoc = await fetchIPLocation();
+          if (ipLoc) {
+            setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
+            const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
+            if (cityInfo) setUserCityInfo(cityInfo);
+            setStatusNotification(`📍 Location set via IP: ${ipLoc.city}`);
+            setTimeout(() => setStatusNotification(null), 4000);
+          }
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setUserLocation({ lat: 10.9541, lng: 78.7589 });
+      const ipLoc = await fetchIPLocation();
+      if (ipLoc) {
+        setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
+        const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
+        if (cityInfo) setUserCityInfo(cityInfo);
+      }
     }
   };
 
@@ -144,7 +162,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Calculate OSRM driving distance & adapt coordinates relative to user GPS location
+  // 3. Calculate OSRM driving distance & project local parking locations near user's actual city
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
 
@@ -154,31 +172,35 @@ export default function App() {
       let minMeters = Infinity;
       let closestId = null;
 
-      // Check if DB locations are far from user location
+      // Check distance to DB sample locations
       const firstLat = parseFloat(parkings[0].latitude);
       const firstLng = parseFloat(parkings[0].longitude);
       const approxDistKm = Math.hypot(firstLat - userLocation.lat, firstLng - userLocation.lng) * 111;
 
-      const isFarAway = approxDistKm > 500;
+      const isFarAway = approxDistKm > 100;
 
       const updatedList = await Promise.all(
         parkings.map(async (p, idx) => {
           let targetLat = parseFloat(p.latitude);
           let targetLng = parseFloat(p.longitude);
+          let targetCity = p.city;
+          let targetAddress = p.address;
 
-          // If default DB locations are far from user, project them near user's live city (0.5km to 3km)
+          // If default DB locations are far from user, place parking lots right around user's local city (0.5km to 2.5km)
           if (isFarAway) {
             const offsets = [
-              [0.008, 0.006],
-              [-0.009, 0.012],
-              [0.014, -0.008],
-              [-0.012, -0.015],
-              [0.005, -0.018],
-              [-0.018, 0.009],
+              [0.006, 0.005],
+              [-0.007, 0.010],
+              [0.012, -0.007],
+              [-0.010, -0.012],
+              [0.004, -0.015],
+              [-0.015, 0.008],
             ];
             const offset = offsets[idx % offsets.length];
             targetLat = userLocation.lat + offset[0];
             targetLng = userLocation.lng + offset[1];
+            targetCity = userCityInfo.city || 'Local Area';
+            targetAddress = `${100 + (idx + 1) * 25} ${userCityInfo.road || 'Central Blvd'}`;
           }
 
           const route = await fetchDrivingDistanceAndDuration(
@@ -195,6 +217,8 @@ export default function App() {
 
           return {
             ...p,
+            city: targetCity,
+            address: targetAddress,
             latitude: targetLat,
             longitude: targetLng,
             distanceText: route.distanceKm,
@@ -215,13 +239,15 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [userLocation?.lat, userLocation?.lng, parkings.length]);
+  }, [userLocation?.lat, userLocation?.lng, userCityInfo?.city, parkings.length]);
 
   const handleSearchCitySubmit = async (cityName) => {
     if (!cityName) return;
     const geo = await searchCityGeocode(cityName);
     if (geo) {
       setUserLocation({ lat: geo.lat, lng: geo.lng });
+      const cityInfo = await reverseGeocode(geo.lat, geo.lng);
+      if (cityInfo) setUserCityInfo(cityInfo);
       setStatusNotification(`🔍 Location set to: ${cityName}`);
       setTimeout(() => setStatusNotification(null), 4000);
     }
@@ -310,7 +336,9 @@ export default function App() {
               <span className="px-2.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
                 Live IoT Smart Parking
               </span>
-              <span className="text-xs text-slate-400">Neon PostgreSQL DB • OpenStreetMap • OSRM Routing</span>
+              <span className="text-xs text-slate-400">
+                {userCityInfo.city ? `Current Location: ${userCityInfo.city}` : 'Neon PostgreSQL DB • OpenStreetMap'}
+              </span>
             </div>
             <h2 className="text-xl font-bold text-white tracking-tight">Smart Parking Availability Hub</h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
