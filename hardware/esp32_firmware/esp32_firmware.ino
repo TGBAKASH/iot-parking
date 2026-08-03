@@ -15,7 +15,7 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal.h>
 
 // ----------------------------------------------------------------------------
 // Wi-Fi Credentials & Backend API Endpoint Configuration
@@ -38,8 +38,8 @@ const int SLOT_2_PIN = 5;
 const int SLOT_3_PIN = 18;
 const int SLOT_4_PIN = 19;
 
-// Initialize 16x2 I2C LCD (Address 0x3F)
-LiquidCrystal_I2C lcd(0x3F, 16, 2);
+// Initialize 16x2 Parallel LCD (RS=13, EN=12, D4=14, D5=27, D6=26, D7=25)
+LiquidCrystal lcd(13, 12, 14, 27, 26, 25);
 
 // Store previous state of slots to send HTTP requests ONLY when state changes
 bool lastStateSlot1 = false;
@@ -60,43 +60,9 @@ void setup() {
   Serial.println("🤖 ESP32 Smart Parking System Initializing...");
   Serial.println("========================================================");
 
-  // Scan common ESP32 I2C pin pairs
-  int pinPairs[][2] = {
-    {21, 22}, {13, 14}, {26, 27}, {16, 17}, {4, 5}, {32, 33}, {18, 19}
-  };
-  
-  byte foundAddress = 0;
-  int foundSDA = -1, foundSCL = -1;
-
-  for (int i = 0; i < 7; i++) {
-    int sda = pinPairs[i][0];
-    int scl = pinPairs[i][1];
-    Wire.begin(sda, scl);
-    delay(50);
-    
-    for (byte addr = 1; addr < 127; addr++) {
-      Wire.beginTransmission(addr);
-      if (Wire.endTransmission() == 0) {
-        Serial.printf("✨ FOUND I2C DEVICE AT ADDRESS 0x%02X ON PINS SDA=%d, SCL=%d!\n", addr, sda, scl);
-        foundAddress = addr;
-        foundSDA = sda;
-        foundSCL = scl;
-      }
-    }
-  }
-
-  if (foundAddress != 0) {
-    Wire.begin(foundSDA, foundSCL);
-    lcd = LiquidCrystal_I2C(foundAddress, 16, 2);
-    lcd.init();
-    lcd.begin(16, 2);
-    lcd.backlight();
-    lcd.clear();
-  } else {
-    Serial.println("⚠️ No I2C LCD found on any pins. LCD is wired in Parallel 4-bit mode.");
-  }
-  delay(100);
-  
+  // Initialize 16x2 Parallel LCD screen
+  lcd.begin(16, 2);
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Smart Parking");
   lcd.setCursor(0, 1);
