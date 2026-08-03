@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, KeyRound } from 'lucide-react';
+import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, KeyRound, ShieldAlert } from 'lucide-react';
 import { authService } from '../services/api';
 
 /**
- * AuthModal Component (Clean Email & Password Authentication)
- * Supports email/password login and account registration.
+ * AuthModal Component (Clean Public User Registration & Login)
+ * Public registration allows registering user accounts.
+ * Admin privileges are automatically assigned ONLY to hardcoded admin emails (e.g. plumetestnet@gmail.com).
  */
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('user');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +25,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     try {
       let res;
       if (isRegister) {
-        res = await authService.register({ name, email, password, role });
+        res = await authService.register({ name, email, password });
       } else {
         res = await authService.login({ email, password });
       }
@@ -41,13 +41,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Quick fill demo admin credentials for convenience
-  const fillDemoAdmin = () => {
-    setEmail('admin@example.com');
-    setPassword('admin123');
-    setIsRegister(false);
   };
 
   return (
@@ -72,7 +65,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             {isRegister
-              ? 'Enter your details to register a new account.'
+              ? 'Enter your details to register a new user account.'
               : 'Enter your email address and password to sign in.'}
           </p>
         </div>
@@ -96,7 +89,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. John Doe"
+                  placeholder="e.g. Akash"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
@@ -135,20 +128,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </div>
           </div>
 
-          {isRegister && (
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="user">Standard User</option>
-                <option value="admin">Administrator (Full Access)</option>
-              </select>
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={loading}
@@ -162,24 +141,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </>
             ) : (
               <>
-                <LogIn className="w-4 h-4" /> Sign In with Email
+                <LogIn className="w-4 h-4" /> Sign In
               </>
             )}
           </button>
         </form>
 
-        {/* Quick Demo Fill Button */}
-        {!isRegister && (
-          <button
-            onClick={fillDemoAdmin}
-            className="w-full mt-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-colors"
-          >
-            Fill Demo Credentials (admin@example.com)
-          </button>
-        )}
-
         {/* Toggle Register / Login */}
-        <div className="mt-4 pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
+        <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           {isRegister ? (
             <p>
               Already have an account?{' '}
@@ -197,10 +166,17 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 onClick={() => setIsRegister(true)}
                 className="text-indigo-400 font-semibold hover:underline"
               >
-                Register Here
+                Register
               </button>
             </p>
           )}
+
+          <a
+            href="/sec-admin-panel"
+            className="text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium hover:underline text-[11px]"
+          >
+            <ShieldAlert className="w-3 h-3 text-amber-400" /> Admin Portal
+          </a>
         </div>
 
       </div>

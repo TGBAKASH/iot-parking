@@ -7,21 +7,18 @@ import SlotDetailsModal from './components/SlotDetailsModal';
 import AddParkingModal from './components/AddParkingModal';
 import ReservationModal from './components/ReservationModal';
 import AnalyticsModal from './components/AnalyticsModal';
+import SecretAdminPanel from './components/SecretAdminPanel';
 import { parkingService, authService } from './services/api';
 import { fetchDrivingDistanceAndDuration, searchCityGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
-import { Layers, ShieldCheck, MapPin, Zap, Info, Compass, BarChart3, Calendar } from 'lucide-react';
+import { Layers, ShieldCheck, MapPin, Zap, Info, Compass, BarChart3, Calendar, ShieldAlert } from 'lucide-react';
 
 /**
- * Main App Component (Stage 5 Enterprise Edition)
- * Includes:
- * - Leaflet + OpenStreetMap Map Visualization
- * - OSRM driving routes & nearest parking detector
- * - Slot Reservations & Digital QR Pass generation
- * - Real-time System Analytics & Sensor Telemetry Dashboard
- * - ESP32 WebSockets live synchronization
+ * Main App Component (Single Page App with Secret Admin Route /sec-admin-panel)
  */
 export default function App() {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [parkings, setParkings] = useState([]);
   const [selectedParking, setSelectedParking] = useState(null);
@@ -32,21 +29,26 @@ export default function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [nearestParkingId, setNearestParkingId] = useState(null);
 
-  // User auth state
-  const [user, setUser] = useState({ name: 'Admin User', role: 'admin' });
+  // User auth state (default guest or hardcoded admin)
+  const [user, setUser] = useState({ name: 'Akash', email: 'plumetestnet@gmail.com', role: 'admin' });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Modals state
   const [inspectorParkingId, setInspectorParkingId] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingParking, setEditingParking] = useState(null);
-  
-  // Stage 5 Modals
   const [reservingParking, setReservingParking] = useState(null);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   // Toast Notification
   const [statusNotification, setStatusNotification] = useState(null);
+
+  // Track browser URL path changes
+  useEffect(() => {
+    const handleLocationChange = () => setCurrentPath(window.location.pathname);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
 
   // Request Browser Geolocation
   const requestUserLocation = () => {
@@ -58,11 +60,11 @@ export default function App() {
             lng: position.coords.longitude,
           };
           setUserLocation(loc);
-          setStatusNotification(`📍 GPS Location acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+          setStatusNotification(`📍 GPS Location: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           setTimeout(() => setStatusNotification(null), 4000);
         },
         (error) => {
-          console.warn('Geolocation error fallback:', error.message);
+          console.warn('Geolocation fallback:', error.message);
           setUserLocation({ lat: 37.774929, lng: -122.419416 });
         }
       );
@@ -144,7 +146,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Calculate OSRM driving distance for each lot
+  // 3. Calculate OSRM driving distance
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
 
@@ -193,18 +195,16 @@ export default function App() {
     };
   }, [userLocation, parkings.length]);
 
-  // Handle City Search submit
   const handleSearchCitySubmit = async (cityName) => {
     if (!cityName) return;
     const geo = await searchCityGeocode(cityName);
     if (geo) {
       setUserLocation({ lat: geo.lat, lng: geo.lng });
-      setStatusNotification(`🔍 Searched location: ${cityName}`);
+      setStatusNotification(`🔍 Location: ${cityName}`);
       setTimeout(() => setStatusNotification(null), 4000);
     }
   };
 
-  // ESP32 Slot Simulation Trigger
   const handleSimulateESP32 = async (parkingId, slotNumber, isOccupied) => {
     try {
       await parkingService.updateParkingFromESP32({
@@ -213,11 +213,10 @@ export default function App() {
         is_occupied: isOccupied,
       });
     } catch (err) {
-      console.error('ESP32 simulation trigger failed:', err);
+      console.error('ESP32 simulation failed:', err);
     }
   };
 
-  // Admin Delete Parking
   const handleDeleteParking = async (parkingId) => {
     try {
       const res = await parkingService.deleteParking(parkingId);
@@ -228,9 +227,23 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error('Failed to delete parking location:', err);
+      console.error('Failed to delete parking:', err);
     }
   };
+
+  // Check if viewing Secret Admin Panel route
+  if (currentPath === '/sec-admin-panel') {
+    return (
+      <SecretAdminPanel
+        user={user}
+        onAuthSuccess={(u) => setUser(u)}
+        onReturnHome={() => {
+          window.history.pushState({}, '', '/');
+          setCurrentPath('/');
+        }}
+      />
+    );
+  }
 
   const filteredParkings = parkings.filter(
     (p) =>
@@ -272,12 +285,12 @@ export default function App() {
       {/* Main Content Dashboard Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
         
-        {/* Clean Header Banner */}
+        {/* Header Banner */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-semibold">
-                Production Ready
+                Live IoT Parking System
               </span>
               <span className="text-xs text-slate-400">Neon PostgreSQL DB • OpenStreetMap • OSRM Routes</span>
             </div>
@@ -378,9 +391,18 @@ export default function App() {
         onClose={() => setIsAnalyticsOpen(false)}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>Smart Parking System - Enterprise IoT & Full-Stack Solution</p>
+      {/* Footer with link to Secret Admin Panel */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+        <p>Smart Parking System - ESP32 IoT & Full-Stack Solution</p>
+        <button
+          onClick={() => {
+            window.history.pushState({}, '', '/sec-admin-panel');
+            setCurrentPath('/sec-admin-panel');
+          }}
+          className="text-slate-600 hover:text-slate-400 text-[11px] flex items-center gap-1 transition-colors"
+        >
+          <ShieldAlert className="w-3 h-3 text-amber-500/60" /> Secret Admin Portal (/sec-admin-panel)
+        </button>
       </footer>
 
     </div>
