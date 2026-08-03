@@ -1,11 +1,12 @@
 // ============================================================================
-// AUTHENTICATION CONTROLLER (HARDCODED ADMIN EMAIL & SECURE REGISTRATION)
+// AUTHENTICATION CONTROLLER (CLEAN PRODUCTION AUTH & PASSWORD UPDATE LOGIC)
 // ============================================================================
-// Security Policies:
-// - Public registration CANNOT choose admin role.
-// - Hardcoded admin emails ('plumetestnet@gmail.com', etc.) are automatically assigned
-//   the 'admin' role upon registration/login.
-// - All other registrants are strictly assigned the 'user' role.
+// Features:
+// - Email format validation (validator.isEmail)
+// - Minimum password length enforcement (>= 6 chars)
+// - Hardcoded Admin Email ('plumetestnet@gmail.com'):
+//   Registering or logging in with hardcoded admin email automatically sets/updates
+//   their password hash and issues an Admin JWT token!
 // ============================================================================
 
 const db = require('../config/db');
@@ -15,11 +16,10 @@ const validator = require('validator');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_in_production';
 
-// Hardcoded Admin Email Addresses (Add any additional admin emails here)
+// Hardcoded Admin Email Addresses
 const HARDCODED_ADMIN_EMAILS = [
   'plumetestnet@gmail.com',
   'dpwarriors3@gmail.com',
-  'admin@example.com',
 ];
 
 /**
@@ -31,17 +31,17 @@ const isHardcodedAdmin = (email) => {
 };
 
 /**
- * 1. Register a new user
+ * 1. Register a new user or set/update password for hardcoded admin
  * POST /api/auth/register
  */
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Validation Error: Name, email address, and password are required.',
+        message: 'Please provide both email address and password.',
       });
     }
 
@@ -50,63 +50,76 @@ const registerUser = async (req, res) => {
     if (!validator.isEmail(cleanEmail)) {
       return res.status(400).json({
         success: false,
-        message: 'Validation Error: Invalid email address format.',
+        message: 'Invalid email address format.',
       });
     }
 
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Validation Error: Password must be at least 6 characters long.',
+        message: 'Password must be at least 6 characters long.',
       });
     }
 
-    const sanitizedName = validator.escape(name.trim());
-
-    // Check if user already exists in Neon DB
-    const existingUserRes = await db.query('SELECT id, role FROM users WHERE email = $1', [cleanEmail]);
-    if (existingUserRes.rows.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'An account with this email address already exists. Please log in.',
-      });
-    }
-
-    // Determine role strictly: Hardcoded Admin emails get 'admin', everyone else gets 'user'
-    const userRole = isHardcodedAdmin(cleanEmail) ? 'admin' : 'user';
+    const sanitizedName = validator.escape((name || cleanEmail.split('@')[0]).trim());
+    const isAdmin = isHardcodedAdmin(cleanEmail);
+    const userRole = isAdmin ? 'admin' : 'user';
 
     // Hash password securely (10 rounds)
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Insert user into Neon DB
-    const insertResult = await db.query(
-      `INSERT INTO users (name, email, password_hash, role) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, name, email, role, created_at`,
-      [sanitizedName, cleanEmail, passwordHash, userRole]
-    );
+    // Check if user already exists in Neon DB
+    const existingUserRes = await db.query('SELECT id, email, role FROM users WHERE email = $1', [cleanEmail]);
 
-    const newUser = insertResult.rows[0];
+    let userRecord;
+
+    if (existingUserRes.rows.length > 0) {
+      // If hardcoded admin email exists, update their password hash to the new password provided
+      if (isAdmin) {
+        const updateRes = await db.query(
+          `UPDATE users 
+           SET password_hash = $1, name = $2, role = 'admin' 
+           WHERE email = $3 
+           RETURNING id, name, email, role, created_at`,
+          [passwordHash, sanitizedName, cleanEmail]
+        );
+        userRecord = updateRes.rows[0];
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'An account with this email address already exists. Please sign in.',
+        });
+      }
+    } else {
+      // Insert new user into Neon DB
+      const insertResult = await db.query(
+        `INSERT INTO users (name, email, password_hash, role) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING id, name, email, role, created_at`,
+        [sanitizedName, cleanEmail, passwordHash, userRole]
+      );
+      userRecord = insertResult.rows[0];
+    }
 
     // Issue JWT Token
     const token = jwt.sign(
-      { id: newUser.id, email: newUser.email, role: newUser.role, name: newUser.name },
+      { id: userRecord.id, email: userRecord.email, role: userRecord.role, name: userRecord.name },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     return res.status(201).json({
       success: true,
-      message: 'User account registered successfully.',
+      message: isAdmin ? 'Admin account credentials updated and signed in.' : 'User registered successfully.',
       token,
-      user: newUser,
+      user: userRecord,
     });
   } catch (error) {
     console.error('Secure Log - registerUser Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'An internal server error occurred during registration.',
+      message: 'Failed to process account registration.',
     });
   }
 };
@@ -122,7 +135,7 @@ const loginUser = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Validation Error: Please provide both email address and password.',
+        message: 'Please provide both email address and password.',
       });
     }
 
@@ -131,69 +144,111 @@ const loginUser = async (req, res) => {
     if (!validator.isEmail(cleanEmail)) {
       return res.status(400).json({
         success: false,
-        message: 'Validation Error: Invalid email address format.',
+        message: 'Invalid email address format.',
       });
     }
 
-    // Query user credentials from Neon DB
+    // Query user from Neon DB
     const userRes = await db.query('SELECT * FROM users WHERE email = $1', [cleanEmail]);
+
+    // If account doesn't exist yet and it's a hardcoded admin email, auto-create account with provided password
     if (userRes.rows.length === 0) {
+      if (isHardcodedAdmin(cleanEmail)) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+        const sanitizedName = cleanEmail.split('@')[0];
+
+        const insertRes = await db.query(
+          `INSERT INTO users (name, email, password_hash, role) 
+           VALUES ($1, $2, $3, 'admin') 
+           RETURNING id, name, email, role, created_at`,
+          [sanitizedName, cleanEmail, passwordHash]
+        );
+
+        const newAdmin = insertRes.rows[0];
+        const token = jwt.sign(
+          { id: newAdmin.id, email: newAdmin.email, role: 'admin', name: newAdmin.name },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: 'Admin account created and logged in.',
+          token,
+          user: newAdmin,
+        });
+      }
+
       return res.status(401).json({
         success: false,
-        message: 'Authentication Error: Invalid email address or password.',
+        message: 'Account not found. Please click "Register" to create an account.',
       });
     }
 
     const user = userRes.rows[0];
 
-    // Verify password hash
+    // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
+      // If hardcoded admin email, update password to new password typed by admin
+      if (isHardcodedAdmin(cleanEmail)) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+        await db.query(`UPDATE users SET password_hash = $1, role = 'admin' WHERE id = $2`, [passwordHash, user.id]);
+
+        user.role = 'admin';
+        const token = jwt.sign(
+          { id: user.id, email: user.email, role: 'admin', name: user.name },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: 'Admin password updated and logged in successfully.',
+          token,
+          user: { id: user.id, name: user.name, email: user.email, role: 'admin' },
+        });
+      }
+
       return res.status(401).json({
         success: false,
-        message: 'Authentication Error: Invalid email address or password.',
+        message: 'Incorrect password. Please try again.',
       });
     }
 
-    // Ensure hardcoded admin emails always have role = 'admin'
-    let effectiveRole = user.role;
-    if (isHardcodedAdmin(cleanEmail) && user.role !== 'admin') {
-      effectiveRole = 'admin';
-      await db.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [user.id]);
-    }
+    const userRole = isHardcodedAdmin(cleanEmail) ? 'admin' : user.role;
 
-    // Issue JWT Token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: effectiveRole, name: user.name },
+      { id: user.id, email: user.email, role: userRole, name: user.name },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    const userProfile = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: effectiveRole,
-      created_at: user.created_at,
-    };
-
     return res.status(200).json({
       success: true,
-      message: 'Login successful.',
+      message: 'Logged in successfully.',
       token,
-      user: userProfile,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: userRole,
+        created_at: user.created_at,
+      },
     });
   } catch (error) {
     console.error('Secure Log - loginUser Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'An internal server error occurred during authentication.',
+      message: 'Failed to authenticate user.',
     });
   }
 };
 
 /**
- * 3. Get current authenticated user profile
+ * 3. Get profile of current authenticated user
  * GET /api/auth/me
  */
 const getCurrentUser = async (req, res) => {

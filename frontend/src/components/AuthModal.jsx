@@ -3,9 +3,8 @@ import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, KeyRound, ShieldAler
 import { authService } from '../services/api';
 
 /**
- * AuthModal Component (Clean Public User Registration & Login)
- * Public registration allows registering user accounts.
- * Admin privileges are automatically assigned ONLY to hardcoded admin emails (e.g. plumetestnet@gmail.com).
+ * AuthModal Component (Clean Email & Password Registration & Login)
+ * Completely removed demo credentials.
  */
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
@@ -37,7 +36,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         setError(res.message || 'Authentication failed.');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Authentication failed. Please check credentials.');
+      const serverMessage = err.response?.data?.message || 'Authentication failed. Please check credentials.';
+      setError(serverMessage);
     } finally {
       setLoading(false);
     }
@@ -61,11 +61,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             <KeyRound className="w-6 h-6" />
           </div>
           <h2 className="text-lg font-bold text-white">
-            {isRegister ? 'Create an Account' : 'Email & Password Sign In'}
+            {isRegister ? 'Create an Account' : 'Sign In with Email'}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             {isRegister
-              ? 'Enter your details to register a new user account.'
+              ? 'Enter your name, email address, and password to register.'
               : 'Enter your email address and password to sign in.'}
           </p>
         </div>
@@ -105,7 +105,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               <input
                 type="email"
                 required
-                placeholder="user@example.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
