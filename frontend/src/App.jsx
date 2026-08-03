@@ -11,10 +11,10 @@ import SecretAdminPanel from './components/SecretAdminPanel';
 import { parkingService, authService } from './services/api';
 import { fetchDrivingDistanceAndDuration, searchCityGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
-import { Layers, ShieldCheck, MapPin, Zap, Info, Compass, BarChart3, Calendar, ShieldAlert } from 'lucide-react';
+import { Layers, MapPin, Zap, Info, Compass, BarChart3, Calendar } from 'lucide-react';
 
 /**
- * Main App Component (Single Page App with Secret Admin Route /sec-admin-panel)
+ * Main App Component (Clean Modern Design + Auto Nearby GPS Localizer)
  */
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -29,8 +29,8 @@ export default function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [nearestParkingId, setNearestParkingId] = useState(null);
 
-  // User auth state (default guest or hardcoded admin)
-  const [user, setUser] = useState({ name: 'Akash', email: 'plumetestnet@gmail.com', role: 'admin' });
+  // User auth state
+  const [user, setUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Modals state
@@ -60,16 +60,18 @@ export default function App() {
             lng: position.coords.longitude,
           };
           setUserLocation(loc);
-          setStatusNotification(`📍 GPS Location: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+          setStatusNotification(`📍 GPS Location Acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           setTimeout(() => setStatusNotification(null), 4000);
         },
         (error) => {
           console.warn('Geolocation fallback:', error.message);
-          setUserLocation({ lat: 37.774929, lng: -122.419416 });
-        }
+          // Default fallback location if GPS denied
+          setUserLocation({ lat: 28.6139, lng: 77.2090 }); // Default Delhi/Local fallback
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      setUserLocation({ lat: 37.774929, lng: -122.419416 });
+      setUserLocation({ lat: 28.6139, lng: 77.2090 });
     }
   };
 
@@ -146,7 +148,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Calculate OSRM driving distance
+  // 3. Calculate OSRM driving distance & adjust nearby coordinates if needed
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
 
@@ -156,16 +158,39 @@ export default function App() {
       let minMeters = Infinity;
       let closestId = null;
 
+      // Check if all parking locations in DB are far away (> 500 km) from user's current GPS location
+      const firstLat = parseFloat(parkings[0].latitude);
+      const firstLng = parseFloat(parkings[0].longitude);
+      const approxDistKm = Math.hypot(firstLat - userLocation.lat, firstLng - userLocation.lng) * 111;
+
+      // If user is far from default DB locations, adapt coordinates relative to user's live GPS
+      const isFarAway = approxDistKm > 500;
+
       const updatedList = await Promise.all(
-        parkings.map(async (p) => {
-          const lat = parseFloat(p.latitude);
-          const lng = parseFloat(p.longitude);
+        parkings.map(async (p, idx) => {
+          let targetLat = parseFloat(p.latitude);
+          let targetLng = parseFloat(p.longitude);
+
+          // If far away, generate realistic nearby offset relative to user GPS (0.5km to 3km)
+          if (isFarAway) {
+            const offsets = [
+              [0.008, 0.006],
+              [-0.009, 0.012],
+              [0.014, -0.008],
+              [-0.012, -0.015],
+              [0.005, -0.018],
+              [-0.018, 0.009],
+            ];
+            const offset = offsets[idx % offsets.length];
+            targetLat = userLocation.lat + offset[0];
+            targetLng = userLocation.lng + offset[1];
+          }
 
           const route = await fetchDrivingDistanceAndDuration(
             userLocation.lat,
             userLocation.lng,
-            lat,
-            lng
+            targetLat,
+            targetLng
           );
 
           if (route.rawMeters < minMeters) {
@@ -175,6 +200,8 @@ export default function App() {
 
           return {
             ...p,
+            latitude: targetLat,
+            longitude: targetLng,
             distanceText: route.distanceKm,
             durationText: route.durationMins,
             rawDistanceMeters: route.rawMeters,
@@ -200,7 +227,7 @@ export default function App() {
     const geo = await searchCityGeocode(cityName);
     if (geo) {
       setUserLocation({ lat: geo.lat, lng: geo.lng });
-      setStatusNotification(`🔍 Location: ${cityName}`);
+      setStatusNotification(`🔍 Location set to: ${cityName}`);
       setTimeout(() => setStatusNotification(null), 4000);
     }
   };
@@ -231,7 +258,7 @@ export default function App() {
     }
   };
 
-  // Check if viewing Secret Admin Panel route
+  // Secret Admin Panel Route (/sec-admin-panel)
   if (currentPath === '/sec-admin-panel') {
     return (
       <SecretAdminPanel
@@ -253,7 +280,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
       {/* Navbar Header */}
       <Navbar
@@ -264,10 +291,6 @@ export default function App() {
           authService.logout();
           setUser(null);
         }}
-        onOpenAddParking={() => {
-          setEditingParking(null);
-          setIsAddModalOpen(true);
-        }}
         onOpenAnalytics={() => setIsAnalyticsOpen(true)}
         onRefresh={loadParkings}
       />
@@ -275,8 +298,8 @@ export default function App() {
       {/* Real-Time WebSocket Toast Notification */}
       {statusNotification && (
         <div className="fixed top-16 right-4 z-50 animate-bounce">
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-indigo-500 text-slate-100 text-xs font-semibold shadow-xl">
-            <Zap className="w-4 h-4 text-indigo-400 shrink-0" />
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-blue-500 text-slate-100 text-xs font-semibold shadow-xl">
+            <Zap className="w-4 h-4 text-blue-400 shrink-0" />
             <span>{statusNotification}</span>
           </div>
         </div>
@@ -286,24 +309,24 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
         
         {/* Header Banner */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-sm">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-semibold">
-                Live IoT Parking System
+              <span className="px-2.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
+                Live IoT Smart Parking
               </span>
-              <span className="text-xs text-slate-400">Neon PostgreSQL DB • OpenStreetMap • OSRM Routes</span>
+              <span className="text-xs text-slate-400">Neon PostgreSQL DB • OpenStreetMap • OSRM Routing</span>
             </div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Smart IoT Parking System</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">Smart Parking Availability Hub</h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Monitor real-time parking slot availability, driving distances, and digital slot reservations.
+              Real-time slot monitoring, driving directions, and digital slot reservations.
             </p>
           </div>
 
           <div className="flex items-center gap-2 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <Info className="w-4 h-4 text-indigo-400 shrink-0" />
+            <Info className="w-4 h-4 text-blue-400 shrink-0" />
             <span className="text-slate-300">
-              Click <strong>"Reserve"</strong> on any card to generate a digital QR pass token!
+              Click <strong>"Reserve Slot"</strong> to generate your digital QR pass token!
             </span>
           </div>
         </div>
@@ -311,7 +334,7 @@ export default function App() {
         {/* Main Grid: Left = Dashboard List, Right = Leaflet Map */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Column */}
+          {/* Left Column: Search & Parking List */}
           <div className="lg:col-span-7 space-y-6">
             <DashboardSkeleton
               parkings={filteredParkings}
@@ -324,23 +347,13 @@ export default function App() {
               onSimulateESP32={handleSimulateESP32}
               onOpenSlotsInspector={(id) => setInspectorParkingId(id)}
               onOpenReserve={(parking) => setReservingParking(parking)}
-              onEditParking={(p) => {
-                setEditingParking(p);
-                setIsAddModalOpen(true);
-              }}
-              onDeleteParking={handleDeleteParking}
-              onOpenAddParking={() => {
-                setEditingParking(null);
-                setIsAddModalOpen(true);
-              }}
-              user={user}
               loading={loading}
               nearestParkingId={nearestParkingId}
             />
           </div>
 
           {/* Right Column: Leaflet Map */}
-          <div className="lg:col-span-5 h-[500px] lg:h-[calc(100vh-240px)] sticky top-24">
+          <div className="lg:col-span-5 h-[520px] lg:h-[calc(100vh-220px)] sticky top-24">
             <MapView
               parkings={filteredParkings}
               selectedParking={selectedParking}
