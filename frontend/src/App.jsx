@@ -261,9 +261,9 @@ export default function App() {
 
       {/* Real-Time WebSocket Toast Notification */}
       {statusNotification && (
-        <div className="fixed top-20 right-4 z-50 animate-bounce">
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-cyan-950 border border-cyan-400 text-cyan-200 text-xs font-semibold shadow-2xl">
-            <Zap className="w-4 h-4 text-cyan-400 shrink-0" />
+        <div className="fixed top-16 right-4 z-50 animate-bounce">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-indigo-500 text-slate-100 text-xs font-semibold shadow-xl">
+            <Zap className="w-4 h-4 text-indigo-400 shrink-0" />
             <span>{statusNotification}</span>
           </div>
         </div>
@@ -272,25 +272,25 @@ export default function App() {
       {/* Main Content Dashboard Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
         
-        {/* Banner */}
-        <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        {/* Clean Header Banner */}
+        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-semibold">
-                Stage 5 Active
+              <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-semibold">
+                Production Ready
               </span>
-              <span className="text-xs text-slate-400">Slot Booking, Digital QR Pass & Telemetry Analytics</span>
+              <span className="text-xs text-slate-400">Neon PostgreSQL DB • OpenStreetMap • OSRM Routes</span>
             </div>
-            <h2 className="text-2xl font-bold text-white">Smart IoT Parking Platform</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">Smart IoT Parking System</h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Reserve parking slots in advance, view peak telemetry analytics, and receive real-time ESP32 IR sensor updates.
+              Monitor real-time parking slot availability, driving distances, and digital slot reservations.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-            <BarChart3 className="w-4 h-4 text-cyan-400 shrink-0" />
+          <div className="flex items-center gap-2 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <Info className="w-4 h-4 text-indigo-400 shrink-0" />
             <span className="text-slate-300">
-              Click <strong>"Analytics"</strong> in navbar to inspect system-wide telemetry & peak occupancy!
+              Click <strong>"Reserve"</strong> on any card to generate a digital QR pass token!
             </span>
           </div>
         </div>

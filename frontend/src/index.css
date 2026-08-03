@@ -2,59 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Glassmorphism custom styling utilities */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Clean, Simple Human Design System (Stripe / Vercel Dark Aesthetics) */
+
+:root {
+  --bg-main: #0b0f19;
+  --card-bg: #111827;
+  --card-border: #1f2937;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
 }
 
-.glass-card {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+body {
+  background-color: var(--bg-main);
+  color: #f3f4f6;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.glass-card:hover {
-  border-color: rgba(56, 189, 248, 0.4);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+/* Clean Card Utility */
+.card-clean {
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Pulse animation for live real-time connection badge */
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.1);
-  }
+.card-clean:hover {
+  border-color: #374151;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 }
 
-.live-pulse {
-  animation: pulseGlow 2s infinite ease-in-out;
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-/* Leaflet Dark Theme Popup Styling */
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+/* Leaflet Dark Theme Customization */
+.leaflet-container {
+  background: #0b0f19 !important;
+}
+
 .custom-leaflet-popup .leaflet-popup-content-wrapper {
-  background: #0f172a !important;
-  color: #f8fafc !important;
-  border: 1px solid #334155 !important;
-  border-radius: 16px !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+  background: #111827 !important;
+  color: #f9fafb !important;
+  border: 1px solid #1f2937 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
 }
 
 .custom-leaflet-popup .leaflet-popup-tip {
-  background: #0f172a !important;
-  border: 1px solid #334155 !important;
+  background: #111827 !important;
 }
 
 .custom-leaflet-popup a.leaflet-popup-close-button {
-  color: #94a3b8 !important;
-  padding: 6px !important;
+  color: #9ca3af !important;
+  padding: 4px !important;
 }
 
 .custom-leaflet-popup a.leaflet-popup-close-button:hover {
