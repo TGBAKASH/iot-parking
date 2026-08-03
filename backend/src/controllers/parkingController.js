@@ -1,15 +1,19 @@
 // ============================================================================
-// PARKING CONTROLLER (FULL NEON POSTGRESQL + WEBSOCKET BROADCASTING)
+// PARKING CONTROLLER (DEEP SECURITY AUDITED & SANITIZED)
 // ============================================================================
-// Implements complete CRUD operations for parking locations and individual slot
-// updates from ESP32 IR sensors. All data is persisted directly in Neon PostgreSQL.
+// Features:
+// - Strict coordinate range validation (-90 to 90 lat, -180 to 180 lng)
+// - Capacity bounds enforcement (1 to 500 slots)
+// - Input string sanitization to prevent XSS & SQL parameter corruption
+// - ESP32 payload validation and real-time WebSockets broadcasting
 // ============================================================================
 
 const db = require('../config/db');
+const validator = require('validator');
 
 /**
  * 1. GET /parkings
- * Fetches all parking locations from Neon DB along with slot count summaries.
+ * Fetches all parking locations from Neon DB.
  */
 const getAllParkings = async (req, res) => {
   try {
@@ -36,28 +40,27 @@ const getAllParkings = async (req, res) => {
       data: result.rows,
     });
   } catch (error) {
-    console.error('Error in getAllParkings:', error);
+    console.error('Secure Log - getAllParkings Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Database query error while fetching parking locations.',
+      message: 'Failed to retrieve parking locations.',
     });
   }
 };
 
 /**
  * 2. GET /parking/:id
- * Fetches details for a specific parking lot along with individual slot statuses.
+ * Fetches details and slot statuses for a specific parking lot.
  */
 const getParkingById = async (req, res) => {
   try {
     const { id } = req.params;
     const parkingId = parseInt(id, 10);
 
-    if (isNaN(parkingId)) {
-      return res.status(400).json({ success: false, message: 'Invalid parking ID format.' });
+    if (isNaN(parkingId) || parkingId <= 0) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Invalid parking ID.' });
     }
 
-    // Query parking lot metadata
     const parkingRes = await db.query(
       `SELECT 
          p.id, 
@@ -82,7 +85,6 @@ const getParkingById = async (req, res) => {
 
     const parkingData = parkingRes.rows[0];
 
-    // Query individual slots state for this parking lot
     const slotsRes = await db.query(
       `SELECT id, slot_number, is_occupied, last_updated 
        FROM parking_slots 
@@ -98,17 +100,17 @@ const getParkingById = async (req, res) => {
       data: parkingData,
     });
   } catch (error) {
-    console.error('Error in getParkingById:', error);
+    console.error('Secure Log - getParkingById Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Failed to retrieve parking location details.',
+      message: 'Failed to retrieve parking details.',
     });
   }
 };
 
 /**
  * 3. POST /createParking
- * Creates a new parking location record in Neon DB and generates initial parking_slots records.
+ * Creates a new parking location (Protected: Admin Only).
  */
 const createParking = async (req, res) => {
   try {
@@ -117,25 +119,43 @@ const createParking = async (req, res) => {
     if (!name || !address || !city || latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: name, address, city, latitude, longitude.',
+        message: 'Validation Error: Missing required fields: name, address, city, latitude, longitude.',
       });
     }
 
-    const total = parseInt(total_slots || 10, 10);
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
+    const total = parseInt(total_slots || 10, 10);
 
-    // Insert new parking record into Neon DB
+    // Validate coordinate range
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Latitude must be between -90 and 90.' });
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Longitude must be between -180 and 180.' });
+    }
+
+    // Validate slot bounds
+    if (isNaN(total) || total < 1 || total > 500) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Total slots must be between 1 and 500.' });
+    }
+
+    // Sanitize string inputs
+    const cleanName = validator.escape(name.trim());
+    const cleanAddress = validator.escape(address.trim());
+    const cleanCity = validator.escape(city.trim());
+
+    // Insert into Neon DB
     const insertRes = await db.query(
       `INSERT INTO parkings (name, address, city, latitude, longitude, total_slots, available_slots)
        VALUES ($1, $2, $3, $4, $5, $6, $6)
        RETURNING *`,
-      [name.trim(), address.trim(), city.trim(), lat, lng, total]
+      [cleanName, cleanAddress, cleanCity, lat, lng, total]
     );
 
     const newParking = insertRes.rows[0];
 
-    // Auto-generate slot rows in parking_slots table for slot 1 to total_slots
+    // Generate initial slot rows
     for (let i = 1; i <= total; i++) {
       await db.query(
         `INSERT INTO parking_slots (parking_id, slot_number, is_occupied) 
@@ -145,40 +165,58 @@ const createParking = async (req, res) => {
       );
     }
 
-    // Fetch complete newly created parking object
-    const createdParkingRes = await db.query(
-      `SELECT id, name, address, city, latitude, longitude, total_slots, available_slots,
-              (total_slots - available_slots) AS occupied_slots
-       FROM parkings WHERE id = $1`,
-      [newParking.id]
-    );
-
     return res.status(201).json({
       success: true,
-      message: 'Parking location created successfully with slot records.',
-      data: createdParkingRes.rows[0],
+      message: 'Parking location created successfully.',
+      data: newParking,
     });
   } catch (error) {
-    console.error('Error in createParking:', error);
+    console.error('Secure Log - createParking Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Failed to create parking location in database.',
+      message: 'Failed to create parking location.',
     });
   }
 };
 
 /**
  * 4. PUT /parking/:id
- * Updates parking lot location, name, or total slots capacity in Neon DB.
+ * Updates parking lot location details (Protected: Admin Only).
  */
 const updateParkingDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const parkingId = parseInt(id, 10);
+
+    if (isNaN(parkingId) || parkingId <= 0) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Invalid parking ID.' });
+    }
+
     const { name, address, city, latitude, longitude, total_slots } = req.body;
 
-    if (isNaN(parkingId)) {
-      return res.status(400).json({ success: false, message: 'Invalid parking ID.' });
+    let cleanLat = null;
+    let cleanLng = null;
+    let cleanTotal = null;
+
+    if (latitude !== undefined) {
+      cleanLat = parseFloat(latitude);
+      if (isNaN(cleanLat) || cleanLat < -90 || cleanLat > 90) {
+        return res.status(400).json({ success: false, message: 'Validation Error: Invalid latitude.' });
+      }
+    }
+
+    if (longitude !== undefined) {
+      cleanLng = parseFloat(longitude);
+      if (isNaN(cleanLng) || cleanLng < -180 || cleanLng > 180) {
+        return res.status(400).json({ success: false, message: 'Validation Error: Invalid longitude.' });
+      }
+    }
+
+    if (total_slots !== undefined) {
+      cleanTotal = parseInt(total_slots, 10);
+      if (isNaN(cleanTotal) || cleanTotal < 1 || cleanTotal > 500) {
+        return res.status(400).json({ success: false, message: 'Validation Error: Total slots must be between 1 and 500.' });
+      }
     }
 
     const updateRes = await db.query(
@@ -193,12 +231,12 @@ const updateParkingDetails = async (req, res) => {
        WHERE id = $7
        RETURNING *`,
       [
-        name ? name.trim() : null,
-        address ? address.trim() : null,
-        city ? city.trim() : null,
-        latitude !== undefined ? parseFloat(latitude) : null,
-        longitude !== undefined ? parseFloat(longitude) : null,
-        total_slots !== undefined ? parseInt(total_slots, 10) : null,
+        name ? validator.escape(name.trim()) : null,
+        address ? validator.escape(address.trim()) : null,
+        city ? validator.escape(city.trim()) : null,
+        cleanLat,
+        cleanLng,
+        cleanTotal,
         parkingId,
       ]
     );
@@ -213,25 +251,25 @@ const updateParkingDetails = async (req, res) => {
       data: updateRes.rows[0],
     });
   } catch (error) {
-    console.error('Error in updateParkingDetails:', error);
+    console.error('Secure Log - updateParkingDetails Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Failed to update parking details.',
+      message: 'Failed to update parking location.',
     });
   }
 };
 
 /**
  * 5. DELETE /parking/:id
- * Removes a parking location and all associated slot records from Neon DB.
+ * Removes a parking location (Protected: Admin Only).
  */
 const deleteParking = async (req, res) => {
   try {
     const { id } = req.params;
     const parkingId = parseInt(id, 10);
 
-    if (isNaN(parkingId)) {
-      return res.status(400).json({ success: false, message: 'Invalid parking ID.' });
+    if (isNaN(parkingId) || parkingId <= 0) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Invalid parking ID.' });
     }
 
     const deleteRes = await db.query('DELETE FROM parkings WHERE id = $1 RETURNING id', [parkingId]);
@@ -245,7 +283,7 @@ const deleteParking = async (req, res) => {
       message: `Parking lot #${parkingId} deleted successfully.`,
     });
   } catch (error) {
-    console.error('Error in deleteParking:', error);
+    console.error('Secure Log - deleteParking Error:', error.message);
     return res.status(500).json({
       success: false,
       message: 'Failed to delete parking location.',
@@ -254,10 +292,7 @@ const deleteParking = async (req, res) => {
 };
 
 /**
- * 6. POST /updateParking (ESP32 IR Sensor Hook Endpoint)
- * Payload format: { "parking_id": 1, "slot_number": 2, "is_occupied": true }
- * Updates slot state in Neon DB, recalculates available slots count, and emits
- * real-time WebSockets event 'parkingSlotUpdated' to all connected website clients.
+ * 6. POST /updateParking (ESP32 Sensor Hook Endpoint)
  */
 const updateParkingFromESP32 = async (req, res) => {
   try {
@@ -266,7 +301,7 @@ const updateParkingFromESP32 = async (req, res) => {
     if (parking_id === undefined || slot_number === undefined || is_occupied === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid ESP32 sensor payload. Required: parking_id, slot_number, is_occupied (boolean).',
+        message: 'Validation Error: Missing required fields: parking_id, slot_number, is_occupied.',
       });
     }
 
@@ -274,7 +309,11 @@ const updateParkingFromESP32 = async (req, res) => {
     const sNum = parseInt(slot_number, 10);
     const occupied = Boolean(is_occupied);
 
-    // 1. Upsert slot status in parking_slots table
+    if (isNaN(pId) || pId <= 0 || isNaN(sNum) || sNum <= 0) {
+      return res.status(400).json({ success: false, message: 'Validation Error: Invalid parking_id or slot_number.' });
+    }
+
+    // 1. Upsert slot state
     await db.query(
       `INSERT INTO parking_slots (parking_id, slot_number, is_occupied, last_updated)
        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
@@ -283,7 +322,7 @@ const updateParkingFromESP32 = async (req, res) => {
       [pId, sNum, occupied]
     );
 
-    // Log telemetry activity to sensor_logs table
+    // 2. Log telemetry event
     try {
       await db.query(
         `INSERT INTO sensor_logs (parking_id, slot_number, is_occupied) VALUES ($1, $2, $3)`,
@@ -293,14 +332,13 @@ const updateParkingFromESP32 = async (req, res) => {
       console.warn('Telemetry log insertion warning:', logErr.message);
     }
 
-    // 2. Count current free slots for this parking lot
+    // 3. Recalculate available slots
     const freeCountRes = await db.query(
       `SELECT COUNT(*) AS free_count FROM parking_slots WHERE parking_id = $1 AND is_occupied = FALSE`,
       [pId]
     );
     const newAvailable = parseInt(freeCountRes.rows[0].free_count, 10);
 
-    // 3. Update available_slots count in parkings table
     const updateParkingRes = await db.query(
       `UPDATE parkings 
        SET available_slots = $1, updated_at = CURRENT_TIMESTAMP 
@@ -312,7 +350,6 @@ const updateParkingFromESP32 = async (req, res) => {
 
     const updatedParkingObj = updateParkingRes.rows[0] || null;
 
-    // 4. Construct WebSockets payload
     const eventPayload = {
       parking_id: pId,
       slot_number: sNum,
@@ -321,11 +358,9 @@ const updateParkingFromESP32 = async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    // 5. Broadcast real-time Socket.IO event to all frontend clients
     const io = req.app.get('io');
     if (io) {
       io.emit('parkingSlotUpdated', eventPayload);
-      console.log(`📡 ESP32 Sensor Hook: Updated Lot #${pId}, Slot #${sNum} -> Occupied: ${occupied}. Broadcasted via WebSockets.`);
     }
 
     return res.status(200).json({
@@ -334,10 +369,10 @@ const updateParkingFromESP32 = async (req, res) => {
       data: eventPayload,
     });
   } catch (error) {
-    console.error('Error in updateParkingFromESP32:', error);
+    console.error('Secure Log - updateParkingFromESP32 Error:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Failed to process ESP32 sensor update.',
+      message: 'Failed to process sensor update.',
     });
   }
 };
