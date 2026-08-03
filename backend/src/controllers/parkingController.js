@@ -283,6 +283,16 @@ const updateParkingFromESP32 = async (req, res) => {
       [pId, sNum, occupied]
     );
 
+    // Log telemetry activity to sensor_logs table
+    try {
+      await db.query(
+        `INSERT INTO sensor_logs (parking_id, slot_number, is_occupied) VALUES ($1, $2, $3)`,
+        [pId, sNum, occupied]
+      );
+    } catch (logErr) {
+      console.warn('Telemetry log insertion warning:', logErr.message);
+    }
+
     // 2. Count current free slots for this parking lot
     const freeCountRes = await db.query(
       `SELECT COUNT(*) AS free_count FROM parking_slots WHERE parking_id = $1 AND is_occupied = FALSE`,

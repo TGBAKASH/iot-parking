@@ -17,6 +17,8 @@ dotenv.config();
 
 const parkingRoutes = require('./routes/parkingRoutes');
 const authRoutes = require('./routes/authRoutes');
+const reservationRoutes = require('./routes/reservationRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const initializeSocketHandlers = require('./sockets/socketHandler');
 
 const app = express();
@@ -53,6 +55,8 @@ app.get('/api/health', (req, res) => {
 
 // Mount API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/reservations', reservationRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/', parkingRoutes);
 app.use('/api', parkingRoutes);
 

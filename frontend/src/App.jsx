@@ -5,20 +5,21 @@ import MapView from './components/MapView';
 import AuthModal from './components/AuthModal';
 import SlotDetailsModal from './components/SlotDetailsModal';
 import AddParkingModal from './components/AddParkingModal';
+import ReservationModal from './components/ReservationModal';
+import AnalyticsModal from './components/AnalyticsModal';
 import { parkingService, authService } from './services/api';
 import { fetchDrivingDistanceAndDuration, searchCityGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
-import { Layers, ShieldCheck, MapPin, Zap, Info, Compass } from 'lucide-react';
+import { Layers, ShieldCheck, MapPin, Zap, Info, Compass, BarChart3, Calendar } from 'lucide-react';
 
 /**
- * Main App Component (Milestone 3 Production Version - 100% Free Stack)
- * Features:
- * - Leaflet + OpenStreetMap + CartoDB Dark Mode map tiles (NO Google Cloud API Key required!)
- * - OSRM driving routes API (Calculates exact driving distance & duration along actual roads)
- * - Highlights NEAREST parking lot based on actual driving distance
- * - Nominatim OpenStreetMap City Geocoding Search
- * - Live WebSockets slot availability updates from ESP32 sensors
- * - Popups with "Navigate with Google Maps" deep link
+ * Main App Component (Stage 5 Enterprise Edition)
+ * Includes:
+ * - Leaflet + OpenStreetMap Map Visualization
+ * - OSRM driving routes & nearest parking detector
+ * - Slot Reservations & Digital QR Pass generation
+ * - Real-time System Analytics & Sensor Telemetry Dashboard
+ * - ESP32 WebSockets live synchronization
  */
 export default function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -39,6 +40,10 @@ export default function App() {
   const [inspectorParkingId, setInspectorParkingId] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingParking, setEditingParking] = useState(null);
+  
+  // Stage 5 Modals
+  const [reservingParking, setReservingParking] = useState(null);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   // Toast Notification
   const [statusNotification, setStatusNotification] = useState(null);
@@ -53,12 +58,11 @@ export default function App() {
             lng: position.coords.longitude,
           };
           setUserLocation(loc);
-          setStatusNotification(`📍 Live GPS Location acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+          setStatusNotification(`📍 GPS Location acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           setTimeout(() => setStatusNotification(null), 4000);
         },
         (error) => {
-          console.warn('Geolocation prompt error or denied:', error.message);
-          // Default fallback location (San Francisco: 37.774929, -122.419416)
+          console.warn('Geolocation error fallback:', error.message);
           setUserLocation({ lat: 37.774929, lng: -122.419416 });
         }
       );
@@ -85,7 +89,7 @@ export default function App() {
     }
   };
 
-  // 2. Initial Setup: Request geolocation & fetch parkings
+  // 2. Initial Setup
   useEffect(() => {
     requestUserLocation();
     loadParkings();
@@ -101,7 +105,7 @@ export default function App() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
 
-    // Subscribe to live ESP32 updates emitted by backend
+    // Subscribe to live ESP32 updates
     subscribeToSlotUpdates((data) => {
       const { parking_id, slot_number, is_occupied, updated_parking } = data;
 
@@ -140,7 +144,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Calculate OSRM driving distance and travel time for each parking lot
+  // 3. Calculate OSRM driving distance for each lot
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
 
@@ -189,13 +193,13 @@ export default function App() {
     };
   }, [userLocation, parkings.length]);
 
-  // Handle City Search submit via Nominatim Geocoding API
+  // Handle City Search submit
   const handleSearchCitySubmit = async (cityName) => {
     if (!cityName) return;
     const geo = await searchCityGeocode(cityName);
     if (geo) {
       setUserLocation({ lat: geo.lat, lng: geo.lng });
-      setStatusNotification(`🔍 Searched location: ${cityName} (${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)})`);
+      setStatusNotification(`🔍 Searched location: ${cityName}`);
       setTimeout(() => setStatusNotification(null), 4000);
     }
   };
@@ -228,7 +232,6 @@ export default function App() {
     }
   };
 
-  // Filter parkings by search query string
   const filteredParkings = parkings.filter(
     (p) =>
       p.name.toLowerCase().includes(searchCity.toLowerCase()) ||
@@ -252,6 +255,7 @@ export default function App() {
           setEditingParking(null);
           setIsAddModalOpen(true);
         }}
+        onOpenAnalytics={() => setIsAnalyticsOpen(true)}
         onRefresh={loadParkings}
       />
 
@@ -272,26 +276,26 @@ export default function App() {
         <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold">
-                Milestone 3 Active
+              <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-semibold">
+                Stage 5 Active
               </span>
-              <span className="text-xs text-slate-400">Leaflet + OpenStreetMap + OSRM Routes API (100% Free)</span>
+              <span className="text-xs text-slate-400">Slot Booking, Digital QR Pass & Telemetry Analytics</span>
             </div>
-            <h2 className="text-2xl font-bold text-white">Smart IoT Parking System</h2>
+            <h2 className="text-2xl font-bold text-white">Smart IoT Parking Platform</h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Driving distance & travel time calculated via OSRM. Nearest parking lot automatically highlighted!
+              Reserve parking slots in advance, view peak telemetry analytics, and receive real-time ESP32 IR sensor updates.
             </p>
           </div>
 
           <div className="flex items-center gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-            <Info className="w-4 h-4 text-emerald-400 shrink-0" />
+            <BarChart3 className="w-4 h-4 text-cyan-400 shrink-0" />
             <span className="text-slate-300">
-              Click any map marker to open details and launch <strong>"Navigate with Google Maps"</strong>!
+              Click <strong>"Analytics"</strong> in navbar to inspect system-wide telemetry & peak occupancy!
             </span>
           </div>
         </div>
 
-        {/* Main Grid: Left = Dashboard List, Right = Interactive Leaflet Map */}
+        {/* Main Grid: Left = Dashboard List, Right = Leaflet Map */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* Left Column */}
@@ -306,6 +310,7 @@ export default function App() {
               onRequestUserLocation={requestUserLocation}
               onSimulateESP32={handleSimulateESP32}
               onOpenSlotsInspector={(id) => setInspectorParkingId(id)}
+              onOpenReserve={(parking) => setReservingParking(parking)}
               onEditParking={(p) => {
                 setEditingParking(p);
                 setIsAddModalOpen(true);
@@ -360,9 +365,22 @@ export default function App() {
         initialData={editingParking}
       />
 
+      <ReservationModal
+        isOpen={Boolean(reservingParking)}
+        onClose={() => setReservingParking(null)}
+        parking={reservingParking}
+        user={user}
+        onSuccess={() => loadParkings()}
+      />
+
+      <AnalyticsModal
+        isOpen={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+      />
+
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>Smart Parking System - ESP32 IoT & Full-Stack Node/React Solution</p>
+        <p>Smart Parking System - Enterprise IoT & Full-Stack Solution</p>
       </footer>
 
     </div>

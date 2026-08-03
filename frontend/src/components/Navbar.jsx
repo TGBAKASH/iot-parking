@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, Radio, Shield, MapPin, UserCheck, RefreshCw, LogIn, LogOut, Plus } from 'lucide-react';
+import { Car, Radio, Shield, MapPin, UserCheck, RefreshCw, LogIn, LogOut, Plus, BarChart3 } from 'lucide-react';
 
 /**
  * Navbar Component
@@ -57,6 +57,15 @@ export default function Navbar({
             title="Refresh Database Data"
           >
             <RefreshCw className="w-4 h-4" />
+          </button>
+
+          {/* Analytics Dashboard Trigger */}
+          <button
+            onClick={onOpenAnalytics}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors"
+            title="Open Analytics Dashboard"
+          >
+            <BarChart3 className="w-4 h-4 text-cyan-400" /> <span className="hidden md:inline">Analytics</span>
           </button>
 
           {/* Add Parking Location Button (Admin Only) */}

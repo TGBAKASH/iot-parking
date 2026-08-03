@@ -92,4 +92,28 @@ export const authService = {
   },
 };
 
+export const reservationService = {
+  createReservation: async (reservationData) => {
+    const response = await api.post('/api/reservations/create', reservationData);
+    return response.data;
+  },
+
+  getReservations: async () => {
+    const response = await api.get('/api/reservations');
+    return response.data;
+  },
+
+  cancelReservation: async (id) => {
+    const response = await api.post(`/api/reservations/cancel/${id}`);
+    return response.data;
+  },
+};
+
+export const analyticsService = {
+  getSummary: async () => {
+    const response = await api.get('/api/analytics/summary');
+    return response.data;
+  },
+};
+
 export default api;

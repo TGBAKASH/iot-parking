@@ -19,6 +19,7 @@ export default function DashboardSkeleton({
   onRequestUserLocation,
   onSimulateESP32,
   onOpenSlotsInspector,
+  onOpenReserve,
   onEditParking,
   onDeleteParking,
   onOpenAddParking,
@@ -105,6 +106,7 @@ export default function DashboardSkeleton({
               isSelected={selectedParking?.id === parking.id}
               onSelect={onSelectParking}
               onOpenSlotsInspector={onOpenSlotsInspector}
+              onOpenReserve={onOpenReserve}
               onEdit={onEditParking}
               onDelete={onDeleteParking}
               onSimulateESP32={onSimulateESP32}

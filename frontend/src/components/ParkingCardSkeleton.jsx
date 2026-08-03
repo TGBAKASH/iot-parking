@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, Layers, Edit3, Trash2, Zap, ExternalLink, Award } from 'lucide-react';
+import { MapPin, Navigation, Clock, Layers, Edit3, Trash2, Zap, ExternalLink, Award, Calendar } from 'lucide-react';
 
 /**
  * ParkingCardSkeleton Component (Milestone 3 Production Version)
@@ -117,9 +117,20 @@ export default function ParkingCardSkeleton({
             e.stopPropagation();
             onOpenSlotsInspector && onOpenSlotsInspector(id);
           }}
-          className="flex-1 py-1.5 px-3 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+          className="py-1.5 px-2.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all flex items-center justify-center gap-1"
         >
-          <Layers className="w-3.5 h-3.5 text-cyan-400" /> View Slots
+          <Layers className="w-3.5 h-3.5 text-cyan-400" /> Slots
+        </button>
+
+        {/* Reserve Slot Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenReserve && onOpenReserve(parking);
+          }}
+          className="py-1.5 px-2.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all flex items-center justify-center gap-1"
+        >
+          <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Reserve
         </button>
 
         {/* Navigate with Google Maps */}
@@ -128,7 +139,7 @@ export default function ParkingCardSkeleton({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md shadow-blue-500/20"
+          className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md shadow-blue-500/20"
         >
           <ExternalLink className="w-3.5 h-3.5" /> Navigate
         </a>
