@@ -2,14 +2,21 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import MapSkeleton from './components/MapSkeleton';
-import { parkingService } from './services/api';
+import AuthModal from './components/AuthModal';
+import SlotDetailsModal from './components/SlotDetailsModal';
+import AddParkingModal from './components/AddParkingModal';
+import { parkingService, authService } from './services/api';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
 import { Layers, ShieldCheck, MapPin, Zap, Info } from 'lucide-react';
 
 /**
- * Main App Component (Milestone 1 Core Skeleton)
- * Connects state management for parking list, real-time WebSockets update handler,
- * city search filter, and Google Maps placeholder.
+ * Main App Component (Milestone 2 Production Version)
+ * Integrates:
+ * - Direct REST API & Neon PostgreSQL persistence
+ * - Real-time Socket.IO WebSockets event synchronization
+ * - User & Admin Authentication
+ * - Interactive Individual Slot Inspector
+ * - Admin Parking Lot Creation, Editing, and Deletion
  */
 export default function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -17,10 +24,20 @@ export default function App() {
   const [selectedParking, setSelectedParking] = useState(null);
   const [searchCity, setSearchCity] = useState('');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState({ name: 'Admin User', role: 'admin' });
+  
+  // User state
+  const [user, setUser] = useState({ name: 'Admin Demo', role: 'admin' });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Modals state
+  const [inspectorParkingId, setInspectorParkingId] = useState(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingParking, setEditingParking] = useState(null);
+
+  // Notification Toast
   const [statusNotification, setStatusNotification] = useState(null);
 
-  // 1. Fetch initial parkings list from Node.js backend
+  // 1. Fetch live parking locations from Node.js backend (Neon PostgreSQL DB)
   const loadParkings = async () => {
     try {
       setLoading(true);
@@ -32,13 +49,13 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error('Failed to load parkings:', err);
+      console.error('Failed to fetch parkings from backend:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Setup Socket.IO real-time event listeners
+  // 2. WebSockets & initial setup lifecycle
   useEffect(() => {
     loadParkings();
 
@@ -53,33 +70,36 @@ export default function App() {
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
 
-    // Listen for live ESP32 updates
+    // Subscribe to live ESP32 slot updates emitted by backend
     subscribeToSlotUpdates((data) => {
       const { parking_id, slot_number, is_occupied, updated_parking } = data;
-      
-      // Update local state in real-time
+
+      // Update state instantly without reloading
       setParkings((prevParkings) =>
         prevParkings.map((p) => {
           if (p.id === parking_id) {
-            const updatedAvailable = updated_parking 
-              ? updated_parking.available_slots 
-              : Math.max(0, p.available_slots + (is_occupied ? -1 : 1));
+            const newAvail = updated_parking
+              ? parseInt(updated_parking.available_slots, 10)
+              : Math.max(0, parseInt(p.available_slots, 10) + (is_occupied ? -1 : 1));
             
-            const updatedOccupied = p.total_slots - updatedAvailable;
+            const newTotal = parseInt(p.total_slots, 10);
+            const newOccupied = newTotal - newAvail;
 
             return {
               ...p,
-              available_slots: updatedAvailable,
-              occupied_slots: updatedOccupied,
+              available_slots: newAvail,
+              occupied_slots: newOccupied,
             };
           }
           return p;
         })
       );
 
-      // Trigger temporary toast alert
+      // Trigger status alert toast
       setStatusNotification(
-        `⚡ Real-time Slot #${slot_number} in Parking Lot #${parking_id} is now ${is_occupied ? 'OCCUPIED' : 'FREE'}!`
+        `⚡ Real-time Slot #${slot_number} in Parking Lot #${parking_id} is now ${
+          is_occupied ? 'OCCUPIED' : 'FREE'
+        }!`
       );
       setTimeout(() => setStatusNotification(null), 4000);
     });
@@ -91,7 +111,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. Test ESP32 Simulation Trigger
+  // ESP32 Slot Simulation Trigger (HTTP POST /updateParking)
   const handleSimulateESP32 = async (parkingId, slotNumber, isOccupied) => {
     try {
       await parkingService.updateParkingFromESP32({
@@ -104,7 +124,22 @@ export default function App() {
     }
   };
 
-  // Filter parkings by search query
+  // Admin Delete Parking Location
+  const handleDeleteParking = async (parkingId) => {
+    try {
+      const res = await parkingService.deleteParking(parkingId);
+      if (res.success) {
+        setParkings((prev) => prev.filter((p) => p.id !== parkingId));
+        if (selectedParking?.id === parkingId) {
+          setSelectedParking(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete parking location:', err);
+    }
+  };
+
+  // Filter parkings by search city
   const filteredParkings = parkings.filter(
     (p) =>
       p.name.toLowerCase().includes(searchCity.toLowerCase()) ||
@@ -115,10 +150,23 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       
-      {/* Header Navbar */}
-      <Navbar isConnected={isConnected} user={user} onRefresh={loadParkings} />
+      {/* Navbar Header */}
+      <Navbar
+        isConnected={isConnected}
+        user={user}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onLogout={() => {
+          authService.logout();
+          setUser(null);
+        }}
+        onOpenAddParking={() => {
+          setEditingParking(null);
+          setIsAddModalOpen(true);
+        }}
+        onRefresh={loadParkings}
+      />
 
-      {/* Real-time Notification Toast */}
+      {/* Real-Time WebSocket Toast Notification */}
       {statusNotification && (
         <div className="fixed top-20 right-4 z-50 animate-bounce">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-cyan-950 border border-cyan-400 text-cyan-200 text-xs font-semibold shadow-2xl">
@@ -131,33 +179,33 @@ export default function App() {
       {/* Main Content Dashboard Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
         
-        {/* Banner / Milestone 1 Header */}
+        {/* Banner */}
         <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold">
-                Milestone 1 Active
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+                Milestone 2 Active
               </span>
-              <span className="text-xs text-slate-400">Node.js Express + Socket.IO + React + Vite</span>
+              <span className="text-xs text-slate-400">Neon PostgreSQL DB Connected & Live</span>
             </div>
             <h2 className="text-2xl font-bold text-white">Smart IoT Parking System</h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Monitor live parking slot availability powered by ESP32 IR sensors, WebSocket instant updates, and Google Maps routing.
+              All parking locations and individual slot states are persisted live in Neon PostgreSQL and synchronized across clients via WebSockets.
             </p>
           </div>
 
           <div className="flex items-center gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-            <Info className="w-4 h-4 text-amber-400 shrink-0" />
+            <Info className="w-4 h-4 text-cyan-400 shrink-0" />
             <span className="text-slate-300">
-              Click <strong>"Occupy Slot 1"</strong> or <strong>"Free Slot 1"</strong> on any card to test HTTP POST & WebSocket real-time sync!
+              Click <strong>"View Slots"</strong> on any parking card to inspect and toggle individual slot sensor states!
             </span>
           </div>
         </div>
 
-        {/* Grid Layout: Left Column = Dashboard List, Right Column = Google Maps Container */}
+        {/* Main Grid: Left = Dashboard List, Right = Map Container */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Column: Dashboard List */}
+          {/* Left Column */}
           <div className="lg:col-span-7 space-y-6">
             <DashboardSkeleton
               parkings={filteredParkings}
@@ -166,11 +214,22 @@ export default function App() {
               searchCity={searchCity}
               setSearchCity={setSearchCity}
               onSimulateESP32={handleSimulateESP32}
+              onOpenSlotsInspector={(id) => setInspectorParkingId(id)}
+              onEditParking={(p) => {
+                setEditingParking(p);
+                setIsAddModalOpen(true);
+              }}
+              onDeleteParking={handleDeleteParking}
+              onOpenAddParking={() => {
+                setEditingParking(null);
+                setIsAddModalOpen(true);
+              }}
+              user={user}
               loading={loading}
             />
           </div>
 
-          {/* Right Column: Google Maps Container */}
+          {/* Right Column: Map Placeholder Container */}
           <div className="lg:col-span-5 h-[500px] lg:h-[calc(100vh-240px)] sticky top-24">
             <MapSkeleton selectedParking={selectedParking} />
           </div>
@@ -178,6 +237,30 @@ export default function App() {
         </div>
 
       </main>
+
+      {/* Modals */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={(u) => setUser(u)}
+      />
+
+      <SlotDetailsModal
+        parkingId={inspectorParkingId}
+        isOpen={Boolean(inspectorParkingId)}
+        onClose={() => setInspectorParkingId(null)}
+        onSlotStateChanged={loadParkings}
+      />
+
+      <AddParkingModal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingParking(null);
+        }}
+        onSuccess={() => loadParkings()}
+        initialData={editingParking}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">

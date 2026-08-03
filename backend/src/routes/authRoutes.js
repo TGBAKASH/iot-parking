@@ -1,17 +1,17 @@
 // ============================================================================
-// AUTHENTICATION ROUTES
-// ============================================================================
-// Express Router for handling user registration and login endpoints.
+// AUTHENTICATION ROUTER
 // ============================================================================
 
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser } = require('../controllers/authController');
+const { registerUser, loginUser, getCurrentUser } = require('../controllers/authController');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
-// POST /api/auth/register
+// Public authentication routes
 router.post('/register', registerUser);
-
-// POST /api/auth/login
 router.post('/login', loginUser);
+
+// Protected user profile route
+router.get('/me', authenticateToken, getCurrentUser);
 
 module.exports = router;

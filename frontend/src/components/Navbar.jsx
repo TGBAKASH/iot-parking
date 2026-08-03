@@ -1,13 +1,20 @@
 import React from 'react';
-import { Car, Radio, Shield, MapPin, UserCheck, RefreshCw } from 'lucide-react';
+import { Car, Radio, Shield, MapPin, UserCheck, RefreshCw, LogIn, LogOut, Plus } from 'lucide-react';
 
 /**
  * Navbar Component
- * Displays system header, live WebSockets status badge, user auth status, and search trigger.
+ * Displays system header, live WebSockets status badge, user auth state, and admin actions.
  */
-export default function Navbar({ isConnected, user, onRefresh }) {
+export default function Navbar({
+  isConnected,
+  user,
+  onOpenAuth,
+  onLogout,
+  onOpenAddParking,
+  onRefresh,
+}) {
   return (
-    <header className="sticky top-0 z-50 glass-panel border-b border-slate-800 px-4 lg:px-8 py-3">
+    <header className="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 lg:px-8 py-3">
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
         
         {/* Brand Logo & Name */}
@@ -25,13 +32,13 @@ export default function Navbar({ isConnected, user, onRefresh }) {
           </div>
         </div>
 
-        {/* Status Indicators & Action Buttons */}
-        <div className="flex items-center space-x-4">
+        {/* Controls & User Account Actions */}
+        <div className="flex items-center space-x-3">
           
-          {/* WebSockets Real-Time Status Badge */}
+          {/* WebSockets Status Badge */}
           <div className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/60 text-xs">
             <Radio className={`w-4 h-4 ${isConnected ? 'text-emerald-400 live-pulse' : 'text-amber-500'}`} />
-            <span className="font-semibold text-slate-300">
+            <span className="font-semibold text-slate-300 hidden sm:inline">
               {isConnected ? (
                 <span className="text-emerald-400 flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-ping" />
@@ -43,20 +50,52 @@ export default function Navbar({ isConnected, user, onRefresh }) {
             </span>
           </div>
 
-          {/* Refresh Data Button */}
+          {/* Refresh Button */}
           <button
             onClick={onRefresh}
             className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700"
-            title="Refresh Parking Data"
+            title="Refresh Database Data"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
 
-          {/* User Auth Info / Badge */}
-          <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-xs text-cyan-300">
-            <UserCheck className="w-4 h-4 text-cyan-400" />
-            <span className="font-medium hidden sm:inline">{user ? user.name : 'Guest User'}</span>
-          </div>
+          {/* Add Parking Location Button (Admin Only) */}
+          {user && user.role === 'admin' && (
+            <button
+              onClick={onOpenAddParking}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all"
+            >
+              <Plus className="w-4 h-4" /> Add Parking
+            </button>
+          )}
+
+          {/* User Account / Login State */}
+          {user ? (
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-xs text-cyan-300">
+                <UserCheck className="w-4 h-4 text-cyan-400" />
+                <span className="font-semibold hidden sm:inline">{user.name}</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-cyan-900/60 uppercase font-bold text-cyan-200">
+                  {user.role}
+                </span>
+              </div>
+
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors"
+            >
+              <LogIn className="w-4 h-4 text-cyan-400" /> Sign In
+            </button>
+          )}
 
         </div>
       </div>
