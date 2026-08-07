@@ -6,9 +6,9 @@ export default function ParkingCardSkeleton({
   onSelect,
   isSelected,
   onOpenSlotsInspector,
-  onOpenReserve,
   onSimulateESP32,
-  isNearest
+  isNearest,
+  userLocation
 }) {
   const { id, name, address, city, latitude, longitude, total_slots, available_slots, distanceText, durationText } = parking;
 
@@ -20,7 +20,9 @@ export default function ParkingCardSkeleton({
     availabilityColor = 'text-yellow-600 bg-yellow-50';
   }
 
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+  // Build Google Maps URL with explicit origin + destination
+  const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${latitude},${longitude}&travelmode=driving`;
 
   return (
     <div 

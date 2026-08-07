@@ -55,8 +55,6 @@ export default function App() {
           showToast(`📍 GPS acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           const cityInfo = await reverseGeocode(loc.lat, loc.lng);
           if (cityInfo) setUserCityInfo(cityInfo);
-          // Refresh parkings after GPS to recalculate distances
-          await loadParkings();
         },
         async () => {
           const ipLoc = await fetchIPLocation();
@@ -65,7 +63,6 @@ export default function App() {
             const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
             if (cityInfo) setUserCityInfo(cityInfo);
             showToast(`📍 Location via IP: ${ipLoc.city}`);
-            await loadParkings();
           }
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -76,7 +73,6 @@ export default function App() {
         setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
         const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
         if (cityInfo) setUserCityInfo(cityInfo);
-        await loadParkings();
       }
     }
   };
@@ -147,10 +143,16 @@ export default function App() {
           const lat = userLocation.lat + offset.latOff;
           const lng = userLocation.lng + offset.lngOff;
 
+          // Update address/city relative to user's location
+          const city = userCityInfo.city || p.city;
+          const address = p.id === 1
+            ? `Smart Parking Zone, ${userCityInfo.road || 'Main Road'}`
+            : `Highway Service Area, NH Road`;
+
           const route = await fetchDrivingDistanceAndDuration(userLocation.lat, userLocation.lng, lat, lng);
           if (route.rawMeters < minMeters) { minMeters = route.rawMeters; closestId = p.id; }
 
-          return { ...p, latitude: lat, longitude: lng, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
+          return { ...p, latitude: lat, longitude: lng, city, address, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
         })
       );
 
@@ -250,6 +252,7 @@ export default function App() {
               onOpenSlotsInspector={(id) => setInspectorParkingId(id)}
               loading={loading}
               nearestParkingId={nearestParkingId}
+              userLocation={userLocation}
             />
           </div>
           <div className="lg:col-span-5 h-[480px] lg:h-[calc(100vh-200px)] sticky top-16">

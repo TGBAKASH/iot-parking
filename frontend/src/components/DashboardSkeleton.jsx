@@ -13,7 +13,8 @@ export default function DashboardSkeleton({
   onSimulateESP32,
   onOpenSlotsInspector,
   loading,
-  nearestParkingId
+  nearestParkingId,
+  userLocation
 }) {
   const [sortBy, setSortBy] = useState('Nearest');
 
@@ -98,6 +99,7 @@ export default function DashboardSkeleton({
               onOpenSlotsInspector={onOpenSlotsInspector}
               onSimulateESP32={onSimulateESP32}
               isNearest={nearestParkingId === parking.id}
+              userLocation={userLocation}
             />
           ))}
         </div>
