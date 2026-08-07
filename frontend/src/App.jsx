@@ -123,10 +123,18 @@ export default function App() {
     };
   }, []);
 
-  // Calculate distances to parkings using real coordinates
+  // Place parkings relative to user's GPS and calculate distances
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
     let isMounted = true;
+
+    // Offsets to place parkings near user's actual GPS
+    // Parking 1 (IoT): ~20km north-east
+    // Parking 2 (Dummy): ~50km south-west
+    const parkingOffsets = {
+      1: { latOff: 0.12, lngOff: 0.10 },   // ~20km away
+      2: { latOff: -0.30, lngOff: -0.25 },  // ~50km away
+    };
 
     const calculate = async () => {
       let minMeters = Infinity;
@@ -134,13 +142,15 @@ export default function App() {
 
       const updated = await Promise.all(
         parkings.map(async (p) => {
-          const lat = parseFloat(p.latitude);
-          const lng = parseFloat(p.longitude);
+          // Use offset from user's position for demo parkings
+          const offset = parkingOffsets[p.id] || { latOff: 0, lngOff: 0 };
+          const lat = userLocation.lat + offset.latOff;
+          const lng = userLocation.lng + offset.lngOff;
 
           const route = await fetchDrivingDistanceAndDuration(userLocation.lat, userLocation.lng, lat, lng);
           if (route.rawMeters < minMeters) { minMeters = route.rawMeters; closestId = p.id; }
 
-          return { ...p, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
+          return { ...p, latitude: lat, longitude: lng, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
         })
       );
 
