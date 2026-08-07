@@ -189,7 +189,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-neutral-100 flex flex-col">
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
       <Navbar
         isConnected={isConnected}
         user={user}
@@ -201,25 +201,25 @@ export default function App() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed top-16 right-4 z-50 animate-pulse">
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-100 text-xs font-medium shadow-2xl">
-            <Zap className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+        <div className="fixed top-16 right-4 z-50 animate-bounce">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white border border-emerald-200 text-gray-800 text-xs font-medium shadow-lg">
+            <Zap className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>{toast}</span>
           </div>
         </div>
       )}
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 space-y-5">
-        {/* Hero — minimal */}
+        {/* Hero */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">Nearby Parking</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">
+            <h2 className="text-xl font-bold text-gray-900">Nearby Parking</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
               {userCityInfo.city ? `${userCityInfo.city}` : 'Detecting location...'} · Real-time IoT monitoring
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={requestUserLocation} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-900 border border-neutral-800 rounded-lg transition-colors">
+            <button onClick={requestUserLocation} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition-all">
               <Compass className="w-3.5 h-3.5" /> GPS
             </button>
           </div>
@@ -261,8 +261,8 @@ export default function App() {
       <AnalyticsModal isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
 
       {/* Footer */}
-      <footer className="border-t border-neutral-900 py-5 text-center text-[11px] text-neutral-600">
-        Smart Parking · IoT Smart Parking System
+      <footer className="border-t border-gray-200 bg-white py-5 text-center text-xs text-gray-400">
+        Smart Parking · IoT Smart Parking System · Powered by ESP32
       </footer>
     </div>
   );

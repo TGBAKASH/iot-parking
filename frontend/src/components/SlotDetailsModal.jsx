@@ -1,92 +1,93 @@
-import React, { useState, useEffect } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { parkingService } from '../services/api';
 
 export default function SlotDetailsModal({ parkingId, isOpen, onClose, onSlotStateChanged }) {
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [parking, setParking] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen && parkingId) {
-      fetchSlots();
-    }
-  }, [isOpen, parkingId]);
-
-  const fetchSlots = async () => {
-    try {
       setLoading(true);
       setError(null);
-      const res = await parkingService.getParkingById(parkingId);
-      const data = res.data || res;
-      setSlots(data.slots || []);
-    } catch (err) {
-      setError('Failed to load slots');
-    } finally {
-      setLoading(false);
+      parkingService.getParkingById(parkingId)
+        .then(res => {
+          setParking(res.data);
+          setLoading(false);
+        })
+        .catch(err => {
+          setError('Failed to load parking details');
+          setLoading(false);
+        });
     }
-  };
+  }, [isOpen, parkingId]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl relative flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between p-4 border-b border-neutral-800 shrink-0">
-          <h2 className="text-sm font-medium text-neutral-200">Slot Inspector</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={fetchSlots}
-              disabled={loading}
-              className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded-md transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded-md transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <h2 className="text-xl font-semibold text-gray-800">
+            {parking ? parking.name : 'Loading...'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X size={24} />
+          </button>
         </div>
 
         <div className="p-4 overflow-y-auto">
-          {error && <div className="text-red-400 text-sm mb-4">{error}</div>}
+          {loading && <div className="text-center py-8 text-gray-500">Loading slots...</div>}
           
-          {loading && !slots.length ? (
-            <div className="flex justify-center py-10">
-              <div className="w-5 h-5 border-2 border-neutral-600 border-t-neutral-300 rounded-full animate-spin" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {slots.map((slot) => {
-                const isFree = !slot.is_occupied;
-                return (
-                  <div
-                    key={slot.id || slot.slot_number}
-                    className={`flex flex-col p-3 rounded-lg border text-xs ${
-                      isFree 
-                        ? 'bg-green-500/10 border-green-500/20 text-green-400' 
-                        : 'bg-red-500/10 border-red-500/20 text-red-400'
-                    }`}
-                  >
-                    <div className="font-medium mb-1">Slot {slot.slot_number}</div>
-                    <div className="opacity-80">{isFree ? 'Free' : 'Occupied'}</div>
-                    {slot.last_updated && (
-                      <div className="text-[10px] opacity-60 mt-2 truncate" title={slot.last_updated}>
-                        {new Date(slot.last_updated).toLocaleTimeString()}
+          {error && <div className="text-center py-8 text-red-500">{error}</div>}
+
+          {parking && !loading && !error && (
+            <>
+              <div className="flex justify-between items-center mb-6 px-2">
+                <div className="text-sm text-gray-500">
+                  <span className="font-semibold text-gray-900">{parking.availableSlots}</span> / {parking.totalSlots} Slots Available
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {parking.slots?.map(slot => {
+                  const isFree = slot.status === 'free';
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-colors ${
+                        isFree 
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                          : 'bg-red-50 border-red-200 text-red-700'
+                      }`}
+                    >
+                      <div className="font-bold text-lg mb-1">{slot.slotNumber}</div>
+                      <div className="flex items-center text-xs font-medium uppercase tracking-wider">
+                        {isFree ? (
+                          <>
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />
+                            Free
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5" />
+                            Occupied
+                          </>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {!loading && slots.length === 0 && !error && (
-            <div className="text-center py-10 text-neutral-500 text-sm">
-              No slots found.
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {(!parking.slots || parking.slots.length === 0) && (
+                <div className="text-center py-8 text-gray-500">No slots information available.</div>
+              )}
+            </>
           )}
         </div>
       </div>

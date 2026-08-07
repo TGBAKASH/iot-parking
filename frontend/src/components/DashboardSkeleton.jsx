@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Compass } from 'lucide-react';
+import { Search, Compass, Loader2 } from 'lucide-react';
 import ParkingCardSkeleton from './ParkingCardSkeleton';
 
 export default function DashboardSkeleton({
-  parkings = [],
+  parkings,
   selectedParking,
   onSelectParking,
   searchCity,
@@ -12,60 +12,63 @@ export default function DashboardSkeleton({
   onRequestUserLocation,
   onSimulateESP32,
   onOpenSlotsInspector,
-  onOpenReserve,
   loading,
   nearestParkingId
 }) {
   const [sortBy, setSortBy] = useState('Nearest');
 
   const sortedParkings = useMemo(() => {
-    let sorted = [...parkings];
-    if (sortBy === 'Nearest') {
-      sorted.sort((a, b) => (a.rawDistanceMeters || 0) - (b.rawDistanceMeters || 0));
-    } else if (sortBy === 'Most Available') {
-      sorted.sort((a, b) => (b.available_slots || 0) - (a.available_slots || 0));
-    } else if (sortBy === 'Lowest Occupancy') {
-      sorted.sort((a, b) => {
-        const occA = a.total_slots ? ((a.total_slots - a.available_slots) / a.total_slots) : 0;
-        const occB = b.total_slots ? ((b.total_slots - b.available_slots) / b.total_slots) : 0;
-        return occA - occB;
-      });
-    } else if (sortBy === 'Name A-Z') {
-      sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    }
+    if (!parkings) return [];
+    const sorted = [...parkings];
+    
+    sorted.sort((a, b) => {
+      if (sortBy === 'Nearest') {
+        const distA = a.rawDistanceMeters || Infinity;
+        const distB = b.rawDistanceMeters || Infinity;
+        return distA - distB;
+      } else if (sortBy === 'Most Available') {
+        return (b.available_slots || 0) - (a.available_slots || 0);
+      } else if (sortBy === 'Lowest Occupancy') {
+        const ratioA = a.total_slots > 0 ? (a.total_slots - a.available_slots) / a.total_slots : 1;
+        const ratioB = b.total_slots > 0 ? (b.total_slots - b.available_slots) / b.total_slots : 1;
+        return ratioA - ratioB;
+      } else if (sortBy === 'Name A-Z') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return 0;
+    });
+    
     return sorted;
   }, [parkings, sortBy]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    onSearchCitySubmit?.(searchCity);
-  };
-
   return (
-    <div className="flex flex-col gap-6 w-full text-neutral-200">
-      <div className="flex flex-col md:flex-row gap-3">
-        <form onSubmit={handleSearchSubmit} className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <form onSubmit={onSearchCitySubmit} className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
+            placeholder="Search parking or city..."
             value={searchCity}
             onChange={(e) => setSearchCity(e.target.value)}
-            placeholder="Search parking or city..."
-            className="w-full bg-neutral-900 border border-neutral-800 rounded-lg py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-neutral-700 transition-colors placeholder-neutral-600"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-shadow"
           />
         </form>
-        <div className="flex gap-2">
+        
+        <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={onRequestUserLocation}
-            className="flex items-center justify-center p-2 bg-neutral-900 border border-neutral-800 rounded-lg hover:bg-neutral-800 transition-colors"
+            className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors shadow-sm flex-shrink-0"
             title="Use my location"
           >
-            <Compass className="w-4 h-4 text-neutral-400" />
+            <Compass className="w-5 h-5" />
           </button>
+          
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="bg-neutral-900 border border-neutral-800 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-neutral-700 transition-colors appearance-none"
+            className="py-2.5 pl-3 pr-8 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-700 text-sm font-medium"
           >
             <option value="Nearest">Nearest</option>
             <option value="Most Available">Most Available</option>
@@ -75,32 +78,30 @@ export default function DashboardSkeleton({
         </div>
       </div>
 
-      <div className="flex-1">
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="w-6 h-6 border-2 border-neutral-600 border-t-neutral-300 rounded-full animate-spin" />
-          </div>
-        ) : sortedParkings.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {sortedParkings.map((parking) => (
-              <ParkingCardSkeleton
-                key={parking.id}
-                parking={parking}
-                isSelected={selectedParking?.id === parking.id}
-                isNearest={nearestParkingId === parking.id}
-                onSelect={onSelectParking}
-                onSimulateESP32={onSimulateESP32}
-                onOpenSlotsInspector={onOpenSlotsInspector}
-                onOpenReserve={onOpenReserve}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-20 text-neutral-500 text-sm">
-            No parkings found.
-          </div>
-        )}
-      </div>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-emerald-600">
+          <Loader2 className="w-10 h-10 animate-spin mb-4" />
+          <p className="text-gray-500 font-medium">Finding parking locations...</p>
+        </div>
+      ) : sortedParkings.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-xl border border-gray-200 border-dashed">
+          <p className="text-gray-500 text-lg">No parking locations found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sortedParkings.map((parking) => (
+            <ParkingCardSkeleton
+              key={parking.id}
+              parking={parking}
+              onSelect={onSelectParking}
+              isSelected={selectedParking?.id === parking.id}
+              onOpenSlotsInspector={onOpenSlotsInspector}
+              onSimulateESP32={onSimulateESP32}
+              isNearest={nearestParkingId === parking.id}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

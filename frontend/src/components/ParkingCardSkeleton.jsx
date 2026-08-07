@@ -1,63 +1,100 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, ExternalLink, Star, Wifi } from 'lucide-react';
+import { MapPin, Navigation, Clock, Star, Wifi, LayoutGrid } from 'lucide-react';
 
-export default function ParkingCardSkeleton({ parking, onSelect, isSelected, onOpenSlotsInspector, onOpenReserve, onSimulateESP32, isNearest }) {
+export default function ParkingCardSkeleton({
+  parking,
+  onSelect,
+  isSelected,
+  onOpenSlotsInspector,
+  onOpenReserve,
+  onSimulateESP32,
+  isNearest
+}) {
   const { id, name, address, city, latitude, longitude, total_slots, available_slots, distanceText, durationText } = parking;
-  const total = parseInt(total_slots, 10) || 1;
-  const available = parseInt(available_slots, 10) || 0;
-  const pct = Math.round((available / total) * 100);
-  const isIoT = (id === 1);
 
-  const statusColor = pct > 40 ? 'text-green-400' : pct > 15 ? 'text-yellow-400' : 'text-red-400';
+  const availabilityRatio = total_slots > 0 ? available_slots / total_slots : 0;
+  let availabilityColor = 'text-red-600 bg-red-50';
+  if (availabilityRatio > 0.4) {
+    availabilityColor = 'text-emerald-600 bg-emerald-50';
+  } else if (availabilityRatio >= 0.15) {
+    availabilityColor = 'text-yellow-600 bg-yellow-50';
+  }
+
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
 
   return (
-    <div
-      onClick={() => onSelect?.(parking)}
-      className={`group p-4 rounded-xl cursor-pointer transition-all duration-150 border ${
-        isSelected ? 'bg-neutral-800 border-neutral-600' : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700'
+    <div 
+      onClick={() => onSelect && onSelect(parking)}
+      className={`bg-white rounded-xl shadow-sm border p-4 transition-all cursor-pointer ${
+        isSelected ? 'ring-2 ring-emerald-500 border-emerald-200' : 'border-gray-200 hover:border-emerald-300'
       }`}
     >
-      {/* Badges row */}
-      <div className="flex items-center gap-2 mb-2">
-        {isNearest && (
-          <div className="flex items-center gap-1 text-[11px] font-medium text-yellow-400">
-            <Star className="w-3 h-3 fill-yellow-400" /> Nearest
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-2">
+            {isNearest && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                <Star className="w-3 h-3 fill-current" />
+                Nearest
+              </span>
+            )}
+            {id === 1 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                <Wifi className="w-3 h-3" />
+                IoT Live
+              </span>
+            )}
           </div>
-        )}
-        {isIoT && (
-          <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">
-            <Wifi className="w-3 h-3" /> IoT Live
-          </div>
-        )}
-      </div>
-
-      {/* Name + availability */}
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium text-white truncate">{name}</h3>
-          <p className="text-[11px] text-neutral-500 flex items-center gap-1 mt-0.5 truncate">
-            <MapPin className="w-3 h-3 shrink-0" /> {address}, {city}
+          <h3 className="text-gray-900 font-medium text-lg leading-tight">{name}</h3>
+          <p className="flex items-start gap-1 text-gray-500 text-xs">
+            <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span className="line-clamp-2">{address}, {city}</span>
           </p>
         </div>
-        <span className={`text-sm font-semibold ${statusColor} shrink-0`}>{available}/{total}</span>
+        
+        <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg ${availabilityColor}`}>
+          <span className="text-xl font-bold leading-none">{available_slots}</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider opacity-80 mt-1">/ {total_slots} left</span>
+        </div>
       </div>
 
-      {/* Distance + time */}
-      <div className="flex items-center gap-4 text-[11px] text-neutral-500 mb-3">
-        <span className="flex items-center gap-1"><Navigation className="w-3 h-3" /> {distanceText || '—'}</span>
-        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {durationText || '—'}</span>
-      </div>
+      {(distanceText || durationText) && (
+        <div className="flex items-center gap-4 mt-4 text-sm text-gray-600 bg-gray-50 p-2.5 rounded-lg">
+          {distanceText && (
+            <div className="flex items-center gap-1.5">
+              <Navigation className="w-4 h-4 text-gray-400" />
+              <span>{distanceText}</span>
+            </div>
+          )}
+          {durationText && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-gray-400" />
+              <span>{durationText}</span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        <button onClick={e => { e.stopPropagation(); onOpenSlotsInspector?.(id); }}
-          className="flex-1 py-1.5 text-[11px] font-medium text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-750 rounded-lg transition-colors">
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSlotsInspector && onOpenSlotsInspector(parking);
+          }}
+          className="flex-1 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+        >
+          <LayoutGrid className="w-4 h-4" />
           Slots
         </button>
-        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-          className="flex-1 py-1.5 text-[11px] font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors flex items-center justify-center gap-1">
-          <ExternalLink className="w-3 h-3" /> Navigate
+        <a
+          href={googleMapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+        >
+          <Navigation className="w-4 h-4" />
+          Navigate
         </a>
       </div>
     </div>
