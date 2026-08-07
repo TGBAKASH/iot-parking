@@ -49,13 +49,13 @@ export default function SlotDetailsModal({ parkingId, isOpen, onClose, onSlotSta
             <>
               <div className="flex justify-between items-center mb-6 px-2">
                 <div className="text-sm text-gray-500">
-                  <span className="font-semibold text-gray-900">{parking.availableSlots}</span> / {parking.totalSlots} Slots Available
+                  <span className="font-semibold text-gray-900">{parking.available_slots}</span> / {parking.total_slots} Slots Available
                 </div>
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {parking.slots?.map(slot => {
-                  const isFree = slot.status === 'free';
+                  const isFree = !slot.is_occupied;
                   return (
                     <div
                       key={slot.id}
@@ -65,7 +65,7 @@ export default function SlotDetailsModal({ parkingId, isOpen, onClose, onSlotSta
                           : 'bg-red-50 border-red-200 text-red-700'
                       }`}
                     >
-                      <div className="font-bold text-lg mb-1">{slot.slotNumber}</div>
+                      <div className="font-bold text-lg mb-1">#{slot.slot_number}</div>
                       <div className="flex items-center text-xs font-medium uppercase tracking-wider">
                         {isFree ? (
                           <>
