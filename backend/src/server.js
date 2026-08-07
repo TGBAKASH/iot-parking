@@ -22,6 +22,7 @@ const authRoutes = require('./routes/authRoutes');
 const reservationRoutes = require('./routes/reservationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const initializeSocketHandlers = require('./sockets/socketHandler');
+const initializeDatabase = require('./initDb');
 
 const app = express();
 const server = http.createServer(app);
@@ -109,10 +110,13 @@ app.use((req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`========================================================`);
   console.log(`🚀 Smart Parking System Server is running on port ${PORT}`);
   console.log(`🌐 Application URL: http://localhost:${PORT}`);
   console.log(`🔌 Socket.IO WebSockets: Ready for connections`);
   console.log(`========================================================`);
+
+  // Initialize database tables and seed data
+  await initializeDatabase();
 });

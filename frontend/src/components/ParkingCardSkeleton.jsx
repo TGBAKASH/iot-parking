@@ -1,11 +1,12 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, ExternalLink, Star } from 'lucide-react';
+import { MapPin, Navigation, Clock, ExternalLink, Star, Wifi } from 'lucide-react';
 
 export default function ParkingCardSkeleton({ parking, onSelect, isSelected, onOpenSlotsInspector, onOpenReserve, onSimulateESP32, isNearest }) {
   const { id, name, address, city, latitude, longitude, total_slots, available_slots, distanceText, durationText } = parking;
   const total = parseInt(total_slots, 10) || 1;
   const available = parseInt(available_slots, 10) || 0;
   const pct = Math.round((available / total) * 100);
+  const isIoT = (id === 1);
 
   const statusColor = pct > 40 ? 'text-green-400' : pct > 15 ? 'text-yellow-400' : 'text-red-400';
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
@@ -17,12 +18,19 @@ export default function ParkingCardSkeleton({ parking, onSelect, isSelected, onO
         isSelected ? 'bg-neutral-800 border-neutral-600' : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700'
       }`}
     >
-      {/* Nearest tag */}
-      {isNearest && (
-        <div className="flex items-center gap-1 text-[11px] font-medium text-yellow-400 mb-2">
-          <Star className="w-3 h-3 fill-yellow-400" /> Nearest
-        </div>
-      )}
+      {/* Badges row */}
+      <div className="flex items-center gap-2 mb-2">
+        {isNearest && (
+          <div className="flex items-center gap-1 text-[11px] font-medium text-yellow-400">
+            <Star className="w-3 h-3 fill-yellow-400" /> Nearest
+          </div>
+        )}
+        {isIoT && (
+          <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">
+            <Wifi className="w-3 h-3" /> IoT Live
+          </div>
+        )}
+      </div>
 
       {/* Name + availability */}
       <div className="flex items-start justify-between gap-3 mb-2">

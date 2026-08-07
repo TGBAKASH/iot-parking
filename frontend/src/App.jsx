@@ -56,6 +56,8 @@ export default function App() {
           showToast(`📍 GPS acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
           const cityInfo = await reverseGeocode(loc.lat, loc.lng);
           if (cityInfo) setUserCityInfo(cityInfo);
+          // Refresh parkings after GPS to recalculate distances
+          await loadParkings();
         },
         async () => {
           const ipLoc = await fetchIPLocation();
@@ -64,6 +66,7 @@ export default function App() {
             const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
             if (cityInfo) setUserCityInfo(cityInfo);
             showToast(`📍 Location via IP: ${ipLoc.city}`);
+            await loadParkings();
           }
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -74,6 +77,7 @@ export default function App() {
         setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
         const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
         if (cityInfo) setUserCityInfo(cityInfo);
+        await loadParkings();
       }
     }
   };
