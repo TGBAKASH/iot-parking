@@ -46,34 +46,35 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Default location: Trichy (user's actual city)
+  const TRICHY = { lat: 10.7905, lng: 78.6844 };
+
   const requestUserLocation = async () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-          setUserLocation(loc);
-          showToast(`📍 GPS acquired: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
-          const cityInfo = await reverseGeocode(loc.lat, loc.lng);
+          // If browser GPS returns somewhere far from Trichy (>100km), use Trichy instead
+          const distFromTrichy = Math.hypot(loc.lat - TRICHY.lat, loc.lng - TRICHY.lng) * 111;
+          const finalLoc = distFromTrichy > 100 ? TRICHY : loc;
+          setUserLocation(finalLoc);
+          showToast(`📍 Location: Tiruchirappalli`);
+          const cityInfo = await reverseGeocode(finalLoc.lat, finalLoc.lng);
           if (cityInfo) setUserCityInfo(cityInfo);
         },
         async () => {
-          const ipLoc = await fetchIPLocation();
-          if (ipLoc) {
-            setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
-            const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
-            if (cityInfo) setUserCityInfo(cityInfo);
-            showToast(`📍 Location via IP: ${ipLoc.city}`);
-          }
+          // GPS failed, use Trichy directly
+          setUserLocation(TRICHY);
+          const cityInfo = await reverseGeocode(TRICHY.lat, TRICHY.lng);
+          if (cityInfo) setUserCityInfo(cityInfo);
+          showToast(`📍 Location: Tiruchirappalli`);
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     } else {
-      const ipLoc = await fetchIPLocation();
-      if (ipLoc) {
-        setUserLocation({ lat: ipLoc.lat, lng: ipLoc.lng });
-        const cityInfo = await reverseGeocode(ipLoc.lat, ipLoc.lng);
-        if (cityInfo) setUserCityInfo(cityInfo);
-      }
+      setUserLocation(TRICHY);
+      const cityInfo = await reverseGeocode(TRICHY.lat, TRICHY.lng);
+      if (cityInfo) setUserCityInfo(cityInfo);
     }
   };
 
@@ -119,18 +120,10 @@ export default function App() {
     };
   }, []);
 
-  // Place parkings relative to user's GPS and calculate distances
+  // Calculate distances using real parking coordinates from DB
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
     let isMounted = true;
-
-    // Offsets to place parkings near user's actual GPS
-    // Parking 1 (IoT): ~20km north-east
-    // Parking 2 (Dummy): ~50km south-west
-    const parkingOffsets = {
-      1: { latOff: 0.12, lngOff: 0.10 },   // ~20km away
-      2: { latOff: -0.30, lngOff: -0.25 },  // ~50km away
-    };
 
     const calculate = async () => {
       let minMeters = Infinity;
@@ -138,21 +131,13 @@ export default function App() {
 
       const updated = await Promise.all(
         parkings.map(async (p) => {
-          // Use offset from user's position for demo parkings
-          const offset = parkingOffsets[p.id] || { latOff: 0, lngOff: 0 };
-          const lat = userLocation.lat + offset.latOff;
-          const lng = userLocation.lng + offset.lngOff;
-
-          // Update address/city relative to user's location
-          const city = userCityInfo.city || p.city;
-          const address = p.id === 1
-            ? `Smart Parking Zone, ${userCityInfo.road || 'Main Road'}`
-            : `Highway Service Area, NH Road`;
+          const lat = parseFloat(p.latitude);
+          const lng = parseFloat(p.longitude);
 
           const route = await fetchDrivingDistanceAndDuration(userLocation.lat, userLocation.lng, lat, lng);
           if (route.rawMeters < minMeters) { minMeters = route.rawMeters; closestId = p.id; }
 
-          return { ...p, latitude: lat, longitude: lng, city, address, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
+          return { ...p, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
         })
       );
 
