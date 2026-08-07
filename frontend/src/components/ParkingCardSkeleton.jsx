@@ -55,13 +55,9 @@ export default function ParkingCardSkeleton({ parking, onSelect, isSelected, onO
           className="flex-1 py-1.5 text-[11px] font-medium text-neutral-400 hover:text-neutral-200 bg-neutral-800 hover:bg-neutral-750 rounded-lg transition-colors">
           Slots
         </button>
-        <button onClick={e => { e.stopPropagation(); onOpenReserve?.(parking); }}
-          className="flex-1 py-1.5 text-[11px] font-medium text-green-400 hover:text-green-300 bg-neutral-800 hover:bg-neutral-750 rounded-lg transition-colors">
-          Reserve
-        </button>
         <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-          className="py-1.5 px-3 text-[11px] font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors flex items-center gap-1">
-          <ExternalLink className="w-3 h-3" /> Go
+          className="flex-1 py-1.5 text-[11px] font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors flex items-center justify-center gap-1">
+          <ExternalLink className="w-3 h-3" /> Navigate
         </a>
       </div>
     </div>

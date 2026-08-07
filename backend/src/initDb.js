@@ -1,9 +1,9 @@
 // ============================================================================
 // DATABASE INITIALIZATION & SEED SCRIPT
 // ============================================================================
-// Creates tables if they don't exist and seeds 2 test parking locations.
-// Parking #1 = IoT Connected (ESP32 entry/exit counter)
-// Parking #2 = Demo location
+// Cleans and seeds exactly 2 parking locations with real coordinates:
+// Parking #1 = IoT Connected (ESP32), ~20km from user (Trichy area)
+// Parking #2 = Dummy parking, ~50km from user
 // ============================================================================
 
 const db = require('./config/db');
@@ -66,54 +66,54 @@ async function initializeDatabase() {
 
     console.log('✅ Database tables verified.');
 
-    // Check if parkings already exist
-    const existing = await db.query('SELECT COUNT(*) FROM parkings');
-    const count = parseInt(existing.rows[0].count, 10);
+    // Clean ALL existing parkings and reseed with exactly 2
+    console.log('🧹 Cleaning existing parking data...');
+    await db.query('DELETE FROM sensor_logs');
+    await db.query('DELETE FROM reservations WHERE parking_id IS NOT NULL');
+    await db.query('DELETE FROM parking_slots');
+    await db.query('DELETE FROM parkings');
 
-    if (count === 0) {
-      console.log('📦 Seeding 2 test parking locations...');
+    console.log('📦 Seeding 2 parking locations...');
 
-      // Parking #1: IoT Connected (ESP32 sensors)
+    // Parking #1: IoT Connected (ESP32 sensor) — ~20km from Manachanallur
+    // Location: Near Tiruchirappalli (Trichy) city center
+    await db.query(
+      `INSERT INTO parkings (id, name, address, city, latitude, longitude, total_slots, available_slots)
+       VALUES (1, 'SRM Smart Parking', 'Trichy Main Road, Near Central Bus Stand', 'Tiruchirappalli', 10.7905, 78.7047, 4, 4)`
+    );
+
+    // Create 4 virtual slots for parking #1
+    for (let i = 1; i <= 4; i++) {
       await db.query(
-        `INSERT INTO parkings (id, name, address, city, latitude, longitude, total_slots, available_slots)
-         VALUES (1, 'Smart Parking Hub', 'Main Road, Block A', 'Chennai', 13.0827, 80.2707, 4, 4)
-         ON CONFLICT (id) DO NOTHING`
+        `INSERT INTO parking_slots (parking_id, slot_number, is_occupied)
+         VALUES (1, $1, FALSE)`,
+        [i]
       );
-
-      // Create 4 virtual slots for parking #1
-      for (let i = 1; i <= 4; i++) {
-        await db.query(
-          `INSERT INTO parking_slots (parking_id, slot_number, is_occupied)
-           VALUES (1, $1, FALSE)
-           ON CONFLICT (parking_id, slot_number) DO NOTHING`,
-          [i]
-        );
-      }
-
-      // Parking #2: Demo location
-      await db.query(
-        `INSERT INTO parkings (id, name, address, city, latitude, longitude, total_slots, available_slots)
-         VALUES (2, 'City Mall Parking', 'Anna Nagar, 2nd Avenue', 'Chennai', 13.0878, 80.2785, 8, 8)
-         ON CONFLICT (id) DO NOTHING`
-      );
-
-      // Create 8 slots for parking #2
-      for (let i = 1; i <= 8; i++) {
-        await db.query(
-          `INSERT INTO parking_slots (parking_id, slot_number, is_occupied)
-           VALUES (2, $1, FALSE)
-           ON CONFLICT (parking_id, slot_number) DO NOTHING`,
-          [i]
-        );
-      }
-
-      // Reset sequence to avoid ID conflicts
-      await db.query(`SELECT setval('parkings_id_seq', (SELECT MAX(id) FROM parkings))`);
-
-      console.log('✅ Seeded 2 parking locations successfully.');
-    } else {
-      console.log(`ℹ️  ${count} parking location(s) already exist. Skipping seed.`);
     }
+
+    // Parking #2: Dummy parking — ~50km from Manachanallur
+    // Location: West of Trichy, towards Karur direction
+    await db.query(
+      `INSERT INTO parkings (id, name, address, city, latitude, longitude, total_slots, available_slots)
+       VALUES (2, 'Highway Plaza Parking', 'NH44, Musiri Bypass Road', 'Musiri', 10.9530, 78.3450, 8, 6)`
+    );
+
+    // Create 8 slots for parking #2 (2 occupied by default)
+    for (let i = 1; i <= 8; i++) {
+      await db.query(
+        `INSERT INTO parking_slots (parking_id, slot_number, is_occupied)
+         VALUES (2, $1, $2)`,
+        [i, i <= 2]  // slots 1-2 occupied, 3-8 free
+      );
+    }
+
+    // Reset sequence
+    await db.query(`SELECT setval('parkings_id_seq', (SELECT MAX(id) FROM parkings))`);
+
+    console.log('✅ Seeded 2 parking locations:');
+    console.log('   1. SRM Smart Parking (IoT) — Trichy (~20km)');
+    console.log('   2. Highway Plaza Parking — Musiri (~50km)');
+
   } catch (error) {
     console.warn('⚠️ Database initialization warning:', error.message);
   }

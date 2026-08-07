@@ -31,7 +31,6 @@ export default function App() {
   const [inspectorParkingId, setInspectorParkingId] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingParking, setEditingParking] = useState(null);
-  const [reservingParking, setReservingParking] = useState(null);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   const [toast, setToast] = useState(null);
@@ -124,7 +123,7 @@ export default function App() {
     };
   }, []);
 
-  // Calculate distances and project nearby if DB locations are far
+  // Calculate distances to parkings using real coordinates
   useEffect(() => {
     if (!userLocation || parkings.length === 0) return;
     let isMounted = true;
@@ -133,35 +132,15 @@ export default function App() {
       let minMeters = Infinity;
       let closestId = null;
 
-      const firstLat = parseFloat(parkings[0].latitude);
-      const firstLng = parseFloat(parkings[0].longitude);
-      const approxDistKm = Math.hypot(firstLat - userLocation.lat, firstLng - userLocation.lng) * 111;
-      const isFarAway = approxDistKm > 100;
-
-      const offsets = [
-        [0.006, 0.005], [-0.007, 0.010], [0.012, -0.007],
-        [-0.010, -0.012], [0.004, -0.015], [-0.015, 0.008],
-      ];
-
       const updated = await Promise.all(
-        parkings.map(async (p, idx) => {
-          let lat = parseFloat(p.latitude);
-          let lng = parseFloat(p.longitude);
-          let city = p.city;
-          let address = p.address;
-
-          if (isFarAway) {
-            const offset = offsets[idx % offsets.length];
-            lat = userLocation.lat + offset[0];
-            lng = userLocation.lng + offset[1];
-            city = userCityInfo.city || 'Local Area';
-            address = `${100 + (idx + 1) * 25} ${userCityInfo.road || 'Central Blvd'}`;
-          }
+        parkings.map(async (p) => {
+          const lat = parseFloat(p.latitude);
+          const lng = parseFloat(p.longitude);
 
           const route = await fetchDrivingDistanceAndDuration(userLocation.lat, userLocation.lng, lat, lng);
           if (route.rawMeters < minMeters) { minMeters = route.rawMeters; closestId = p.id; }
 
-          return { ...p, city, address, latitude: lat, longitude: lng, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
+          return { ...p, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
         })
       );
 
@@ -170,7 +149,7 @@ export default function App() {
 
     calculate();
     return () => { isMounted = false; };
-  }, [userLocation?.lat, userLocation?.lng, userCityInfo?.city, parkings.length]);
+  }, [userLocation?.lat, userLocation?.lng, parkings.length]);
 
   const handleSearchCitySubmit = async (cityName) => {
     if (!cityName) return;
@@ -259,7 +238,6 @@ export default function App() {
               onRequestUserLocation={requestUserLocation}
               onSimulateESP32={handleSimulateESP32}
               onOpenSlotsInspector={(id) => setInspectorParkingId(id)}
-              onOpenReserve={(parking) => setReservingParking(parking)}
               loading={loading}
               nearestParkingId={nearestParkingId}
             />
@@ -280,7 +258,6 @@ export default function App() {
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onAuthSuccess={(u) => setUser(u)} />
       <SlotDetailsModal parkingId={inspectorParkingId} isOpen={Boolean(inspectorParkingId)} onClose={() => setInspectorParkingId(null)} onSlotStateChanged={loadParkings} />
       <AddParkingModal isOpen={isAddModalOpen} onClose={() => { setIsAddModalOpen(false); setEditingParking(null); }} onSuccess={() => loadParkings()} initialData={editingParking} />
-      <ReservationModal isOpen={Boolean(reservingParking)} onClose={() => setReservingParking(null)} parking={reservingParking} user={user} onSuccess={() => loadParkings()} />
       <AnalyticsModal isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
 
       {/* Footer */}
