@@ -124,15 +124,16 @@ export const fetchIPLocation = async () => {
  */
 export const reverseGeocode = async (lat, lng) => {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`;
     const response = await axios.get(url, {
       headers: { 'Accept-Language': 'en' },
     });
 
     if (response.data && response.data.address) {
       const addr = response.data.address;
-      const city = addr.city || addr.town || addr.suburb || addr.county || 'Local Area';
-      const road = addr.road || addr.neighbourhood || addr.suburb || 'Central District';
+      // Prefer most specific name: village > town > suburb > city > county > state_district
+      const city = addr.village || addr.town || addr.suburb || addr.city || addr.county || addr.state_district || 'Local Area';
+      const road = addr.road || addr.neighbourhood || addr.suburb || addr.village || 'Main Road';
       return { city, road };
     }
   } catch (err) {
