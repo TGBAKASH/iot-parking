@@ -75,7 +75,9 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
       parkings.forEach((parking) => {
         if (!parking.latitude || !parking.longitude) return;
 
-        const pct = parking.totalSlots > 0 ? (parking.availableSlots / parking.totalSlots) * 100 : 0;
+        const available = parseInt(parking.available_slots, 10) || 0;
+        const total = parseInt(parking.total_slots, 10) || 1;
+        const pct = total > 0 ? (available / total) * 100 : 0;
         let colorClass = 'bg-emerald-500 border-emerald-700';
         if (pct <= 15) {
           colorClass = 'bg-red-500 border-red-700';
@@ -86,7 +88,7 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         const parkingIcon = L.divIcon({
           className: 'parking-marker',
           html: `<div class="flex items-center justify-center w-8 h-8 rounded-full border-2 text-white font-bold text-xs shadow-md ${colorClass}">
-                  ${parking.availableSlots}
+                  ${available}
                  </div>`,
           iconSize: [32, 32],
           iconAnchor: [16, 16],
@@ -98,7 +100,7 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         popupContent.className = 'p-2 min-w-[150px]';
         popupContent.innerHTML = `
           <h3 class="font-semibold text-gray-800 mb-1 truncate">${parking.name}</h3>
-          <p class="text-sm text-gray-600 mb-3">${parking.availableSlots} / ${parking.totalSlots} Available</p>
+          <p class="text-sm text-gray-600 mb-3">${available} / ${total} Available</p>
           <button id="btn-select-${parking.id}" class="w-full py-1.5 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors text-sm font-medium">View Details</button>
         `;
 

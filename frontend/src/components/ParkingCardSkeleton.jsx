@@ -79,7 +79,7 @@ export default function ParkingCardSkeleton({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onOpenSlotsInspector && onOpenSlotsInspector(parking);
+            onOpenSlotsInspector && onOpenSlotsInspector(id);
           }}
           className="flex-1 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
         >
