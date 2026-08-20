@@ -1,23 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, MapPin, ExternalLink, X, Compass, Maximize2, Minimize2 } from 'lucide-react';
+import { Compass, MapPin } from 'lucide-react';
 
 export default function MapView({ 
   parkings, 
   selectedParking, 
-  navigatingParking,
   onSelectParking, 
-  onStartNavigation,
   userLocation, 
   onRequestUserLocation 
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersGroupRef = useRef(null);
-  const routeLayerRef = useRef(null);
   const markerMapRef = useRef({});
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Initialize map
   useEffect(() => {
@@ -39,7 +35,6 @@ export default function MapView({
 
     L.control.zoom({ position: 'topright' }).addTo(mapRef.current);
     markersGroupRef.current = L.layerGroup().addTo(mapRef.current);
-    routeLayerRef.current = L.layerGroup().addTo(mapRef.current);
 
     setTimeout(() => {
       if (mapRef.current) mapRef.current.invalidateSize();
@@ -53,18 +48,9 @@ export default function MapView({
     };
   }, []);
 
-  // Invalidate map size on fullscreen toggle
+  // When selectedParking changes, fly to it & open popup
   useEffect(() => {
-    setTimeout(() => {
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-      }
-    }, 200);
-  }, [isFullscreen]);
-
-  // When selectedParking changes (and not navigating), fly to it & open popup
-  useEffect(() => {
-    if (!mapRef.current || !selectedParking || navigatingParking) return;
+    if (!mapRef.current || !selectedParking) return;
     const lat = parseFloat(selectedParking.latitude);
     const lng = parseFloat(selectedParking.longitude);
     if (!isNaN(lat) && !isNaN(lng)) {
@@ -74,56 +60,7 @@ export default function MapView({
         marker.openPopup();
       }
     }
-  }, [selectedParking?.id, selectedParking?.latitude, navigatingParking]);
-
-  // Handle live active navigation route drawing on map
-  useEffect(() => {
-    if (!mapRef.current || !routeLayerRef.current) return;
-    routeLayerRef.current.clearLayers();
-
-    if (navigatingParking && userLocation) {
-      const destLat = parseFloat(navigatingParking.latitude);
-      const destLng = parseFloat(navigatingParking.longitude);
-
-      if (!isNaN(destLat) && !isNaN(destLng)) {
-        // Draw route line
-        const routeCoords = navigatingParking.routeCoordinates && navigatingParking.routeCoordinates.length > 0
-          ? navigatingParking.routeCoordinates
-          : [[userLocation.lat, userLocation.lng], [destLat, destLng]];
-
-        // Outer glow
-        const glowLine = L.polyline(routeCoords, {
-          color: '#059669',
-          weight: 8,
-          opacity: 0.4,
-          lineCap: 'round',
-          lineJoin: 'round',
-        });
-
-        // Inner solid road line
-        const mainLine = L.polyline(routeCoords, {
-          color: '#10b981',
-          weight: 4,
-          opacity: 0.95,
-          dashArray: '2, 8',
-          dashOffset: '0',
-          lineCap: 'round',
-          lineJoin: 'round',
-        });
-
-        glowLine.addTo(routeLayerRef.current);
-        mainLine.addTo(routeLayerRef.current);
-
-        // Fit map bounds to show complete route smoothly
-        const routeBounds = L.latLngBounds([
-          [userLocation.lat, userLocation.lng],
-          [destLat, destLng],
-          ...routeCoords
-        ]);
-        mapRef.current.fitBounds(routeBounds, { padding: [70, 70], maxZoom: 14 });
-      }
-    }
-  }, [navigatingParking, userLocation]);
+  }, [selectedParking?.id, selectedParking?.latitude]);
 
   // Update markers whenever parkings or userLocation change
   useEffect(() => {
@@ -160,7 +97,6 @@ export default function MapView({
         const total = parseInt(parking.total_slots, 10) || 1;
         const pct = total > 0 ? (available / total) * 100 : 0;
         const isIoT = parking.id === 1;
-        const isNav = navigatingParking?.id === parking.id;
 
         let badgeBg = '#10b981'; // emerald
         let badgeBorder = '#059669';
@@ -176,14 +112,10 @@ export default function MapView({
           statusText = 'Filling Fast';
         }
 
-        const borderStyle = isNav 
-          ? '3px solid #059669; animation: bounce-custom 1s infinite'
-          : `2px solid ${badgeBorder}`;
-
         // Interactive pill badge displaying slot count directly on map
         const parkingIcon = L.divIcon({
           className: 'parking-marker-pill',
-          html: `<div style="display:inline-flex;align-items:center;background:white;border:${borderStyle};border-radius:20px;padding:3px 8px 3px 4px;box-shadow:0 4px 14px rgba(0,0,0,0.22);font-family:Inter,sans-serif;white-space:nowrap;cursor:pointer">
+          html: `<div style="display:inline-flex;align-items:center;background:white;border:2px solid ${badgeBorder};border-radius:20px;padding:3px 8px 3px 4px;box-shadow:0 4px 14px rgba(0,0,0,0.2);font-family:Inter,sans-serif;white-space:nowrap;cursor:pointer">
                   <div style="display:flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;border-radius:12px;background:${badgeBg};color:white;font-weight:800;font-size:11px;margin-right:5px">
                     ${available}/${total}
                   </div>
@@ -198,11 +130,12 @@ export default function MapView({
         });
 
         const latLng = [lat, lng];
-        const marker = L.marker(latLng, { icon: parkingIcon, zIndexOffset: isNav ? 500 : 100 });
+        const marker = L.marker(latLng, { icon: parkingIcon });
         markerMapRef.current[parking.id] = marker;
 
         const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
-        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${lat},${lng}&travelmode=driving`;
+        const destinationLabel = encodeURIComponent(`${parking.name} - ${available}/${total} Free Slots`);
+        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${lat},${lng}+(${destinationLabel})&travelmode=driving`;
 
         const popupContent = document.createElement('div');
         popupContent.style.cssText = 'padding:10px 12px;min-width:210px;font-family:Inter,sans-serif';
@@ -227,19 +160,14 @@ export default function MapView({
             <button id="btn-inspect-${parking.id}" style="flex:1;padding:7px 10px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
               View Slots
             </button>
-            <button id="btn-nav-${parking.id}" style="flex:1;padding:7px 10px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px">
+            <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" style="flex:1;padding:7px 10px;background:#10b981;color:white;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px">
               Navigate ➔
-            </button>
+            </a>
           </div>
         `;
 
         popupContent.querySelector(`#btn-inspect-${parking.id}`).addEventListener('click', () => {
           if (onSelectParking) onSelectParking(parking);
-          mapRef.current.closePopup();
-        });
-
-        popupContent.querySelector(`#btn-nav-${parking.id}`).addEventListener('click', () => {
-          if (onStartNavigation) onStartNavigation(parking);
           mapRef.current.closePopup();
         });
 
@@ -258,20 +186,15 @@ export default function MapView({
       });
     }
 
-    // Fit map bounds if not in active navigation
-    if (!navigatingParking) {
-      if (bounds.length > 1) {
-        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-      } else if (bounds.length === 1) {
-        mapRef.current.setView(bounds[0], 11);
-      }
+    if (bounds.length > 1) {
+      mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+    } else if (bounds.length === 1) {
+      mapRef.current.setView(bounds[0], 11);
     }
-  }, [parkings, userLocation, selectedParking, navigatingParking, onSelectParking, onStartNavigation]);
+  }, [parkings, userLocation, selectedParking, onSelectParking]);
 
   return (
-    <div className={`relative w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm transition-all duration-300 ${
-      isFullscreen ? 'fixed inset-0 z-[9999] h-screen w-screen rounded-none border-none' : 'h-full'
-    }`}>
+    <div className="relative w-full h-full rounded-xl overflow-hidden border border-gray-200 shadow-sm">
       <style>{`
         .light-popup .leaflet-popup-content-wrapper {
           background: white;
@@ -292,24 +215,9 @@ export default function MapView({
         @keyframes ping {
           75%, 100% { transform: scale(2); opacity: 0; }
         }
-        @keyframes bounce-custom {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-4px); }
-        }
       `}</style>
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       
-      {/* Top right map control buttons */}
-      <div className="absolute top-3 right-12 z-[1000] flex items-center gap-1.5">
-        <button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="p-2 bg-white text-gray-700 rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 hover:text-emerald-600 transition-colors"
-          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Navigation"}
-        >
-          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-        </button>
-      </div>
-
       {/* Re-center GPS button */}
       <button
         onClick={onRequestUserLocation}
@@ -335,33 +243,6 @@ export default function MapView({
           <span className="w-2 h-2 rounded-full bg-red-500"></span> Full
         </span>
       </div>
-
-      {/* Floating In-Map Navigation Overlay when navigating */}
-      {navigatingParking && (
-        <div className="absolute bottom-4 left-4 right-20 z-[1000] bg-white/95 backdrop-blur-md border-2 border-emerald-500 rounded-xl p-3 shadow-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded uppercase">
-                  Navigating
-                </span>
-                <span className="font-extrabold text-sm text-gray-900">{navigatingParking.name}</span>
-              </div>
-              <p className="text-xs text-gray-600 mt-0.5">{navigatingParking.address}</p>
-            </div>
-            
-            {/* Live slot counter display right in the navigation HUD */}
-            <div className="text-right">
-              <div className="text-base font-black text-emerald-600">
-                {navigatingParking.available_slots} / {navigatingParking.total_slots}
-              </div>
-              <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                Slots Free
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

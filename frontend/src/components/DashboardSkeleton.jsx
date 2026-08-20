@@ -6,7 +6,6 @@ export default function DashboardSkeleton({
   parkings,
   selectedParking,
   onSelectParking,
-  onStartNavigation,
   searchCity,
   setSearchCity,
   onSearchCitySubmit,
@@ -15,8 +14,7 @@ export default function DashboardSkeleton({
   onOpenSlotsInspector,
   loading,
   nearestParkingId,
-  userLocation,
-  navigatingParkingId
+  userLocation
 }) {
   const [sortBy, setSortBy] = useState('Nearest');
 
@@ -97,9 +95,7 @@ export default function DashboardSkeleton({
               key={parking.id}
               parking={parking}
               onSelect={onSelectParking}
-              onStartNavigation={onStartNavigation}
               isSelected={selectedParking?.id === parking.id}
-              isNavigating={navigatingParkingId === parking.id}
               onOpenSlotsInspector={onOpenSlotsInspector}
               onSimulateESP32={onSimulateESP32}
               isNearest={nearestParkingId === parking.id}
