@@ -5,19 +5,19 @@ import MapView from './components/MapView';
 import AuthModal from './components/AuthModal';
 import SlotDetailsModal from './components/SlotDetailsModal';
 import AddParkingModal from './components/AddParkingModal';
-import ReservationModal from './components/ReservationModal';
 import AnalyticsModal from './components/AnalyticsModal';
 import SecretAdminPanel from './components/SecretAdminPanel';
 import { parkingService, authService } from './services/api';
 import { fetchDrivingDistanceAndDuration, searchCityGeocode, fetchIPLocation, reverseGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
-import { Zap, Search, Compass } from 'lucide-react';
+import { Zap, Search, Compass, Navigation, X, ExternalLink, CheckCircle } from 'lucide-react';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [parkings, setParkings] = useState([]);
   const [selectedParking, setSelectedParking] = useState(null);
+  const [navigatingParking, setNavigatingParking] = useState(null);
   const [searchCity, setSearchCity] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -105,7 +105,11 @@ export default function App() {
             const newAvail = updated_parking
               ? parseInt(updated_parking.available_slots, 10)
               : Math.max(0, parseInt(p.available_slots, 10) + (is_occupied ? -1 : 1));
-            return { ...p, available_slots: newAvail, occupied_slots: parseInt(p.total_slots, 10) - newAvail };
+            const updatedObj = { ...p, available_slots: newAvail, occupied_slots: parseInt(p.total_slots, 10) - newAvail };
+            
+            // Sync with active navigation if currently navigating to this parking lot
+            setNavigatingParking((nav) => (nav && nav.id === parking_id ? { ...nav, available_slots: newAvail } : nav));
+            return updatedObj;
           }
           return p;
         })
@@ -137,11 +141,20 @@ export default function App() {
           const route = await fetchDrivingDistanceAndDuration(userLocation.lat, userLocation.lng, lat, lng);
           if (route.rawMeters < minMeters) { minMeters = route.rawMeters; closestId = p.id; }
 
-          return { ...p, distanceText: route.distanceKm, durationText: route.durationMins, rawDistanceMeters: route.rawMeters };
+          return { 
+            ...p, 
+            distanceText: route.distanceKm, 
+            durationText: route.durationMins, 
+            rawDistanceMeters: route.rawMeters,
+            routeCoordinates: route.coordinates 
+          };
         })
       );
 
-      if (isMounted) { setParkings(updated); setNearestParkingId(closestId); }
+      if (isMounted) { 
+        setParkings(updated); 
+        setNearestParkingId(closestId); 
+      }
     };
 
     calculate();
@@ -165,6 +178,12 @@ export default function App() {
     } catch (err) {
       console.error('ESP32 simulation failed:', err);
     }
+  };
+
+  const handleStartNavigation = (parking) => {
+    setSelectedParking(parking);
+    setNavigatingParking(parking);
+    showToast(`🚗 Navigating to ${parking.name} — ${parking.available_slots}/${parking.total_slots} Slots Free`);
   };
 
   // Secret Admin Panel Route
@@ -206,13 +225,54 @@ export default function App() {
         </div>
       )}
 
+      {/* Live Navigation Active HUD Bar */}
+      {navigatingParking && (
+        <div className="bg-emerald-600 text-white px-4 py-3 shadow-md sticky top-16 z-40">
+          <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-700/80 rounded-lg animate-pulse">
+                <Navigation className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm">{navigatingParking.name}</span>
+                  <span className="bg-white text-emerald-800 text-[11px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                    {navigatingParking.available_slots} / {navigatingParking.total_slots} SLOTS FREE
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-100 mt-0.5">
+                  {navigatingParking.distanceText ? `${navigatingParking.distanceText} • ${navigatingParking.durationText} away` : 'Live route active on map'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={`https://www.google.com/maps/dir/?api=1${userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : ''}&destination=${navigatingParking.latitude},${navigatingParking.longitude}&travelmode=driving`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 bg-white text-emerald-800 hover:bg-emerald-50 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Open Google Maps
+              </a>
+              <button
+                onClick={() => setNavigatingParking(null)}
+                className="flex items-center gap-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <X className="w-3.5 h-3.5" /> Stop Navigation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 space-y-5">
         {/* Hero */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Nearby Parking</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {userCityInfo.city ? `${userCityInfo.city}` : 'Detecting location...'} · Real-time IoT monitoring
+              {userCityInfo.city ? `${userCityInfo.city}` : 'Tiruchirappalli'} · Real-time IoT monitoring
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -229,6 +289,7 @@ export default function App() {
               parkings={filtered}
               selectedParking={selectedParking}
               onSelectParking={(p) => setSelectedParking(p)}
+              onStartNavigation={handleStartNavigation}
               searchCity={searchCity}
               setSearchCity={setSearchCity}
               onSearchCitySubmit={handleSearchCitySubmit}
@@ -238,13 +299,16 @@ export default function App() {
               loading={loading}
               nearestParkingId={nearestParkingId}
               userLocation={userLocation}
+              navigatingParkingId={navigatingParking?.id}
             />
           </div>
-          <div className="lg:col-span-5 h-[480px] lg:h-[calc(100vh-200px)] sticky top-16">
+          <div className="lg:col-span-5 h-[520px] lg:h-[calc(100vh-200px)] sticky top-20">
             <MapView
               parkings={filtered}
               selectedParking={selectedParking}
+              navigatingParking={navigatingParking}
               onSelectParking={(p) => setSelectedParking(p)}
+              onStartNavigation={handleStartNavigation}
               userLocation={userLocation}
               onRequestUserLocation={requestUserLocation}
             />

@@ -1,8 +1,7 @@
 // ============================================================================
 // FREE ROUTING & GEOCODING SERVICE (OSRM + NOMINATIM OPENSTREETMAP)
 // ============================================================================
-// Requires NO credit card, NO Google account, and NO API keys. 100% Free!
-// 1. fetchDrivingDistance: Uses OSRM to calculate exact road driving distance & time.
+// 1. fetchDrivingDistanceAndDuration: Uses OSRM to calculate road driving distance, time & route geometry.
 // 2. searchCityGeocode: Uses Nominatim to search any city and get lat/lng coordinates.
 // 3. fetchIPLocation: Uses free IP geolocation to detect user's actual city automatically.
 // 4. reverseGeocode: Converts lat/lng coordinates into real local city & street names.
@@ -11,11 +10,11 @@
 import axios from 'axios';
 
 /**
- * Calculate driving distance and travel time using Open Source Routing Machine (OSRM).
+ * Calculate driving distance, travel time, and road polyline geometry using OSRM.
  */
 export const fetchDrivingDistanceAndDuration = async (userLat, userLng, parkingLat, parkingLng) => {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${parkingLng},${parkingLat}?overview=false`;
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${parkingLng},${parkingLat}?overview=full&geometries=geojson`;
     const response = await axios.get(url);
 
     if (response.data && response.data.routes && response.data.routes.length > 0) {
@@ -25,11 +24,15 @@ export const fetchDrivingDistanceAndDuration = async (userLat, userLng, parkingL
 
       const distanceKm = (distanceMeters / 1000).toFixed(1) + ' km';
       const durationMins = Math.max(1, Math.round(durationSeconds / 60)) + ' mins';
+      
+      // Convert OSRM GeoJSON [lng, lat] to Leaflet [lat, lng]
+      const coordinates = (route.geometry?.coordinates || []).map((coord) => [coord[1], coord[0]]);
 
       return {
         distanceKm,
         durationMins,
         rawMeters: distanceMeters,
+        coordinates: coordinates.length > 0 ? coordinates : [[userLat, userLng], [parkingLat, parkingLng]],
       };
     }
   } catch (error) {
@@ -54,6 +57,7 @@ export const fetchDrivingDistanceAndDuration = async (userLat, userLng, parkingL
     distanceKm: fallbackKm,
     durationMins: fallbackMins,
     rawMeters: R * c * 1000,
+    coordinates: [[userLat, userLng], [parkingLat, parkingLng]],
   };
 };
 

@@ -6,6 +6,7 @@ export default function DashboardSkeleton({
   parkings,
   selectedParking,
   onSelectParking,
+  onStartNavigation,
   searchCity,
   setSearchCity,
   onSearchCitySubmit,
@@ -14,7 +15,8 @@ export default function DashboardSkeleton({
   onOpenSlotsInspector,
   loading,
   nearestParkingId,
-  userLocation
+  userLocation,
+  navigatingParkingId
 }) {
   const [sortBy, setSortBy] = useState('Nearest');
 
@@ -43,33 +45,33 @@ export default function DashboardSkeleton({
   }, [parkings, sortBy]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
+    <div className="w-full">
+      <div className="flex flex-col md:flex-row gap-3 mb-4">
         <form onSubmit={onSearchCitySubmit} className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Search parking or city..."
+            placeholder="Search parking or district..."
             value={searchCity}
             onChange={(e) => setSearchCity(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-shadow"
+            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-shadow"
           />
         </form>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onRequestUserLocation}
-            className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors shadow-sm flex-shrink-0"
+            className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors shadow-sm flex-shrink-0"
             title="Use my location"
           >
-            <Compass className="w-5 h-5" />
+            <Compass className="w-4 h-4" />
           </button>
           
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="py-2.5 pl-3 pr-8 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-700 text-sm font-medium"
+            className="py-2 pl-3 pr-8 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-700 text-xs font-semibold"
           >
             <option value="Nearest">Nearest</option>
             <option value="Most Available">Most Available</option>
@@ -81,21 +83,23 @@ export default function DashboardSkeleton({
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-emerald-600">
-          <Loader2 className="w-10 h-10 animate-spin mb-4" />
-          <p className="text-gray-500 font-medium">Finding parking locations...</p>
+          <Loader2 className="w-8 h-8 animate-spin mb-3" />
+          <p className="text-gray-500 text-sm font-medium">Finding parking locations...</p>
         </div>
       ) : sortedParkings.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-xl border border-gray-200 border-dashed">
-          <p className="text-gray-500 text-lg">No parking locations found</p>
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed">
+          <p className="text-gray-500 text-sm">No parking locations found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {sortedParkings.map((parking) => (
             <ParkingCardSkeleton
               key={parking.id}
               parking={parking}
               onSelect={onSelectParking}
+              onStartNavigation={onStartNavigation}
               isSelected={selectedParking?.id === parking.id}
+              isNavigating={navigatingParkingId === parking.id}
               onOpenSlotsInspector={onOpenSlotsInspector}
               onSimulateESP32={onSimulateESP32}
               isNearest={nearestParkingId === parking.id}

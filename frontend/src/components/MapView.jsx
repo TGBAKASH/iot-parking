@@ -1,12 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, MapPin } from 'lucide-react';
+import { Navigation, MapPin, ExternalLink, X, Compass } from 'lucide-react';
 
-export default function MapView({ parkings, selectedParking, onSelectParking, userLocation, onRequestUserLocation }) {
+export default function MapView({ 
+  parkings, 
+  selectedParking, 
+  navigatingParking,
+  onSelectParking, 
+  onStartNavigation,
+  userLocation, 
+  onRequestUserLocation 
+}) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersGroupRef = useRef(null);
+  const routeLayerRef = useRef(null);
   const markerMapRef = useRef({});
 
   // Initialize map
@@ -29,6 +38,7 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
 
     L.control.zoom({ position: 'topright' }).addTo(mapRef.current);
     markersGroupRef.current = L.layerGroup().addTo(mapRef.current);
+    routeLayerRef.current = L.layerGroup().addTo(mapRef.current);
 
     setTimeout(() => {
       if (mapRef.current) mapRef.current.invalidateSize();
@@ -42,9 +52,9 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
     };
   }, []);
 
-  // When selectedParking changes, fly to it & open popup
+  // When selectedParking changes (and not navigating), fly to it & open popup
   useEffect(() => {
-    if (!mapRef.current || !selectedParking) return;
+    if (!mapRef.current || !selectedParking || navigatingParking) return;
     const lat = parseFloat(selectedParking.latitude);
     const lng = parseFloat(selectedParking.longitude);
     if (!isNaN(lat) && !isNaN(lng)) {
@@ -54,7 +64,56 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         marker.openPopup();
       }
     }
-  }, [selectedParking?.id, selectedParking?.latitude]);
+  }, [selectedParking?.id, selectedParking?.latitude, navigatingParking]);
+
+  // Handle live active navigation route drawing on map
+  useEffect(() => {
+    if (!mapRef.current || !routeLayerRef.current) return;
+    routeLayerRef.current.clearLayers();
+
+    if (navigatingParking && userLocation) {
+      const destLat = parseFloat(navigatingParking.latitude);
+      const destLng = parseFloat(navigatingParking.longitude);
+
+      if (!isNaN(destLat) && !isNaN(destLng)) {
+        // Draw route line
+        const routeCoords = navigatingParking.routeCoordinates && navigatingParking.routeCoordinates.length > 0
+          ? navigatingParking.routeCoordinates
+          : [[userLocation.lat, userLocation.lng], [destLat, destLng]];
+
+        // Outer glow
+        const glowLine = L.polyline(routeCoords, {
+          color: '#059669',
+          weight: 7,
+          opacity: 0.4,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+
+        // Inner solid road line
+        const mainLine = L.polyline(routeCoords, {
+          color: '#10b981',
+          weight: 4,
+          opacity: 0.9,
+          dashArray: '1, 8',
+          dashOffset: '0',
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+
+        glowLine.addTo(routeLayerRef.current);
+        mainLine.addTo(routeLayerRef.current);
+
+        // Fit map bounds to show complete route smoothly
+        const routeBounds = L.latLngBounds([
+          [userLocation.lat, userLocation.lng],
+          [destLat, destLng],
+          ...routeCoords
+        ]);
+        mapRef.current.fitBounds(routeBounds, { padding: [60, 60], maxZoom: 14 });
+      }
+    }
+  }, [navigatingParking, userLocation]);
 
   // Update markers whenever parkings or userLocation change
   useEffect(() => {
@@ -69,12 +128,12 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
       const userLatLng = [userLocation.lat, userLocation.lng];
       const userIcon = L.divIcon({
         className: 'user-location-marker',
-        html: `<div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center">
+        html: `<div style="position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center">
                 <div style="position:absolute;width:100%;height:100%;background:#3b82f6;border-radius:50%;opacity:0.35;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div>
-                <div style="width:12px;height:12px;background:#2563eb;border-radius:50%;border:2px solid white;position:relative;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>
+                <div style="width:14px;height:14px;background:#2563eb;border-radius:50%;border:2px solid white;position:relative;box-shadow:0 1px 6px rgba(0,0,0,0.35)"></div>
                </div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
       L.marker(userLatLng, { icon: userIcon, zIndexOffset: 1000 }).addTo(markersGroupRef.current);
       bounds.push(userLatLng);
@@ -91,6 +150,8 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         const total = parseInt(parking.total_slots, 10) || 1;
         const pct = total > 0 ? (available / total) * 100 : 0;
         const isIoT = parking.id === 1;
+        const isNav = navigatingParking?.id === parking.id;
+        const isSelected = selectedParking?.id === parking.id;
 
         let badgeBg = '#10b981'; // emerald
         let badgeBorder = '#059669';
@@ -106,41 +167,42 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
           statusText = 'Filling Fast';
         }
 
-        const isSelected = selectedParking?.id === parking.id;
-        const transformScale = isSelected ? 'scale(1.1)' : 'scale(1)';
+        const borderStyle = isNav 
+          ? '3px solid #059669; animation: bounce-custom 1s infinite'
+          : `2px solid ${badgeBorder}`;
 
         // Interactive pill badge displaying slot count directly on map
         const parkingIcon = L.divIcon({
           className: 'parking-marker-pill',
-          html: `<div style="transform:${transformScale};transition:transform 0.2s ease;display:inline-flex;align-items:center;background:white;border:2px solid ${badgeBorder};border-radius:20px;padding:3px 8px 3px 4px;box-shadow:0 3px 10px rgba(0,0,0,0.18);font-family:Inter,sans-serif;white-space:nowrap;cursor:pointer">
-                  <div style="display:flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 4px;border-radius:11px;background:${badgeBg};color:white;font-weight:700;font-size:11px;margin-right:5px">
+          html: `<div style="display:inline-flex;align-items:center;background:white;border:${borderStyle};border-radius:20px;padding:3px 8px 3px 4px;box-shadow:0 4px 14px rgba(0,0,0,0.22);font-family:Inter,sans-serif;white-space:nowrap;cursor:pointer">
+                  <div style="display:flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 5px;border-radius:12px;background:${badgeBg};color:white;font-weight:800;font-size:11px;margin-right:5px">
                     ${available}/${total}
                   </div>
-                  <div style="display:flex;flex-direction:column;line-height:1">
+                  <div style="display:flex;flex-direction:column;line-height:1.1">
                     <span style="font-size:11px;font-weight:700;color:#111827">${isIoT ? '⚡ IoT' : ''} ${parking.name.split(' ')[0]}</span>
-                    <span style="font-size:9px;font-weight:600;color:${badgeBg}">${available} Slots Free</span>
+                    <span style="font-size:9.5px;font-weight:700;color:${badgeBg}">${available} Free Slots</span>
                   </div>
                  </div>`,
-          iconSize: [110, 32],
-          iconAnchor: [55, 16],
-          popupAnchor: [0, -18],
+          iconSize: [120, 34],
+          iconAnchor: [60, 17],
+          popupAnchor: [0, -20],
         });
 
         const latLng = [lat, lng];
-        const marker = L.marker(latLng, { icon: parkingIcon });
+        const marker = L.marker(latLng, { icon: parkingIcon, zIndexOffset: isNav ? 500 : 100 });
         markerMapRef.current[parking.id] = marker;
 
         const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
         const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${lat},${lng}&travelmode=driving`;
 
         const popupContent = document.createElement('div');
-        popupContent.style.cssText = 'padding:10px 12px;min-width:200px;font-family:Inter,sans-serif';
+        popupContent.style.cssText = 'padding:10px 12px;min-width:210px;font-family:Inter,sans-serif';
         popupContent.innerHTML = `
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
             <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${isIoT ? '#059669' : '#6b7280'};background:${isIoT ? '#ecfdf5' : '#f3f4f6'};padding:2px 6px;border-radius:4px">
               ${isIoT ? '📶 IoT Live' : parking.city}
             </span>
-            <span style="font-size:12px;font-weight:700;color:${badgeBg}">
+            <span style="font-size:13px;font-weight:800;color:${badgeBg}">
               ${available} / ${total} Free
             </span>
           </div>
@@ -156,9 +218,9 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
             <button id="btn-inspect-${parking.id}" style="flex:1;padding:7px 10px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
               View Slots
             </button>
-            <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" style="flex:1;padding:7px 10px;background:#10b981;color:white;text-decoration:none;text-align:center;border-radius:6px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px">
+            <button id="btn-nav-${parking.id}" style="flex:1;padding:7px 10px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px">
               Navigate ➔
-            </a>
+            </button>
           </div>
         `;
 
@@ -167,10 +229,15 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
           mapRef.current.closePopup();
         });
 
+        popupContent.querySelector(`#btn-nav-${parking.id}`).addEventListener('click', () => {
+          if (onStartNavigation) onStartNavigation(parking);
+          mapRef.current.closePopup();
+        });
+
         marker.bindPopup(popupContent, {
           className: 'light-popup',
           closeButton: true,
-          minWidth: 200,
+          minWidth: 210,
         });
 
         marker.on('click', () => {
@@ -182,13 +249,15 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
       });
     }
 
-    // Fit map to show all markers smoothly
-    if (bounds.length > 1) {
-      mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-    } else if (bounds.length === 1) {
-      mapRef.current.setView(bounds[0], 11);
+    // Fit map bounds if not in active navigation
+    if (!navigatingParking) {
+      if (bounds.length > 1) {
+        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+      } else if (bounds.length === 1) {
+        mapRef.current.setView(bounds[0], 11);
+      }
     }
-  }, [parkings, userLocation, selectedParking, onSelectParking]);
+  }, [parkings, userLocation, selectedParking, navigatingParking, onSelectParking, onStartNavigation]);
 
   return (
     <div className="relative w-full h-full rounded-xl overflow-hidden border border-gray-200 shadow-sm">
@@ -196,7 +265,7 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         .light-popup .leaflet-popup-content-wrapper {
           background: white;
           border-radius: 0.75rem;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.14);
           border: 1px solid #e5e7eb;
           padding: 0;
         }
@@ -212,6 +281,10 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         @keyframes ping {
           75%, 100% { transform: scale(2); opacity: 0; }
         }
+        @keyframes bounce-custom {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
       `}</style>
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       
@@ -222,24 +295,51 @@ export default function MapView({ parkings, selectedParking, onSelectParking, us
         aria-label="Find my location"
         title="Center on my location"
       >
-        <Navigation size={20} />
+        <Compass size={20} />
       </button>
 
       {/* Real-time Map Legend / Slot indicator header */}
       <div className="absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm text-xs flex items-center gap-3">
-        <span className="font-semibold text-gray-700 flex items-center gap-1.5">
+        <span className="font-bold text-gray-800 flex items-center gap-1">
           <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Live Slots:
         </span>
-        <span className="flex items-center gap-1 text-emerald-700 font-medium">
+        <span className="flex items-center gap-1 text-emerald-700 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Available
         </span>
-        <span className="flex items-center gap-1 text-amber-700 font-medium">
+        <span className="flex items-center gap-1 text-amber-700 font-semibold">
           <span className="w-2 h-2 rounded-full bg-amber-500"></span> Fast Filling
         </span>
-        <span className="flex items-center gap-1 text-red-700 font-medium">
+        <span className="flex items-center gap-1 text-red-700 font-semibold">
           <span className="w-2 h-2 rounded-full bg-red-500"></span> Full
         </span>
       </div>
+
+      {/* Floating In-Map Navigation Overlay when navigating */}
+      {navigatingParking && (
+        <div className="absolute bottom-4 left-4 right-16 z-[1000] bg-white/95 backdrop-blur-md border-2 border-emerald-500 rounded-xl p-3 shadow-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded uppercase">
+                  Navigating
+                </span>
+                <span className="font-extrabold text-sm text-gray-900">{navigatingParking.name}</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-0.5">{navigatingParking.address}</p>
+            </div>
+            
+            {/* Live slot counter display right in the navigation HUD */}
+            <div className="text-right">
+              <div className="text-base font-black text-emerald-600">
+                {navigatingParking.available_slots} / {navigatingParking.total_slots}
+              </div>
+              <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                Slots Free
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
