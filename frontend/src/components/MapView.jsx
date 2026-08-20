@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, MapPin, ExternalLink, X, Compass } from 'lucide-react';
+import { Navigation, MapPin, ExternalLink, X, Compass, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapView({ 
   parkings, 
@@ -17,6 +17,7 @@ export default function MapView({
   const markersGroupRef = useRef(null);
   const routeLayerRef = useRef(null);
   const markerMapRef = useRef({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Initialize map
   useEffect(() => {
@@ -52,6 +53,15 @@ export default function MapView({
     };
   }, []);
 
+  // Invalidate map size on fullscreen toggle
+  useEffect(() => {
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+      }
+    }, 200);
+  }, [isFullscreen]);
+
   // When selectedParking changes (and not navigating), fly to it & open popup
   useEffect(() => {
     if (!mapRef.current || !selectedParking || navigatingParking) return;
@@ -84,7 +94,7 @@ export default function MapView({
         // Outer glow
         const glowLine = L.polyline(routeCoords, {
           color: '#059669',
-          weight: 7,
+          weight: 8,
           opacity: 0.4,
           lineCap: 'round',
           lineJoin: 'round',
@@ -94,8 +104,8 @@ export default function MapView({
         const mainLine = L.polyline(routeCoords, {
           color: '#10b981',
           weight: 4,
-          opacity: 0.9,
-          dashArray: '1, 8',
+          opacity: 0.95,
+          dashArray: '2, 8',
           dashOffset: '0',
           lineCap: 'round',
           lineJoin: 'round',
@@ -110,7 +120,7 @@ export default function MapView({
           [destLat, destLng],
           ...routeCoords
         ]);
-        mapRef.current.fitBounds(routeBounds, { padding: [60, 60], maxZoom: 14 });
+        mapRef.current.fitBounds(routeBounds, { padding: [70, 70], maxZoom: 14 });
       }
     }
   }, [navigatingParking, userLocation]);
@@ -151,7 +161,6 @@ export default function MapView({
         const pct = total > 0 ? (available / total) * 100 : 0;
         const isIoT = parking.id === 1;
         const isNav = navigatingParking?.id === parking.id;
-        const isSelected = selectedParking?.id === parking.id;
 
         let badgeBg = '#10b981'; // emerald
         let badgeBorder = '#059669';
@@ -260,7 +269,9 @@ export default function MapView({
   }, [parkings, userLocation, selectedParking, navigatingParking, onSelectParking, onStartNavigation]);
 
   return (
-    <div className="relative w-full h-full rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+    <div className={`relative w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm transition-all duration-300 ${
+      isFullscreen ? 'fixed inset-0 z-[9999] h-screen w-screen rounded-none border-none' : 'h-full'
+    }`}>
       <style>{`
         .light-popup .leaflet-popup-content-wrapper {
           background: white;
@@ -288,6 +299,17 @@ export default function MapView({
       `}</style>
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       
+      {/* Top right map control buttons */}
+      <div className="absolute top-3 right-12 z-[1000] flex items-center gap-1.5">
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className="p-2 bg-white text-gray-700 rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 hover:text-emerald-600 transition-colors"
+          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Navigation"}
+        >
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
+      </div>
+
       {/* Re-center GPS button */}
       <button
         onClick={onRequestUserLocation}
@@ -316,7 +338,7 @@ export default function MapView({
 
       {/* Floating In-Map Navigation Overlay when navigating */}
       {navigatingParking && (
-        <div className="absolute bottom-4 left-4 right-16 z-[1000] bg-white/95 backdrop-blur-md border-2 border-emerald-500 rounded-xl p-3 shadow-xl">
+        <div className="absolute bottom-4 left-4 right-20 z-[1000] bg-white/95 backdrop-blur-md border-2 border-emerald-500 rounded-xl p-3 shadow-xl">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
