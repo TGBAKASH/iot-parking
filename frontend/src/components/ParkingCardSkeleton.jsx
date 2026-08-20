@@ -1,16 +1,17 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, Star, Wifi, LayoutGrid, ExternalLink } from 'lucide-react';
+import { MapPin, Navigation, Clock, Star, Wifi, LayoutGrid } from 'lucide-react';
 
 export default function ParkingCardSkeleton({
   parking,
   onSelect,
+  onNavigate,
   isSelected,
   onOpenSlotsInspector,
   onSimulateESP32,
   isNearest,
   userLocation
 }) {
-  const { id, name, address, city, latitude, longitude, total_slots, available_slots, distanceText, durationText } = parking;
+  const { id, name, address, city, total_slots, available_slots, distanceText, durationText } = parking;
 
   const total = parseInt(total_slots, 10) || 1;
   const available = parseInt(available_slots, 10) || 0;
@@ -23,18 +24,11 @@ export default function ParkingCardSkeleton({
     availabilityColor = 'text-amber-700 bg-amber-50 border-amber-200';
   }
 
-  // Build Google Maps URL with explicit destination showing parking name AND slot count directly in Google Maps
-  const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
-  const destinationLabel = encodeURIComponent(`${name} - ${available}/${total} Free Slots`);
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${latitude},${longitude}+(${destinationLabel})&travelmode=driving`;
-
   return (
     <div 
       onClick={() => onSelect && onSelect(parking)}
       className={`bg-white rounded-xl shadow-sm border p-4 transition-all cursor-pointer ${
-        isSelected
-          ? 'ring-2 ring-emerald-500 border-emerald-300'
-          : 'border-gray-200 hover:border-emerald-300 hover:shadow'
+        isSelected ? 'ring-2 ring-emerald-500 border-emerald-300' : 'border-gray-200 hover:border-emerald-300 hover:shadow'
       }`}
     >
       <div className="flex justify-between items-start mb-2.5">
@@ -42,14 +36,12 @@ export default function ParkingCardSkeleton({
           <div className="flex flex-wrap gap-1.5">
             {isNearest && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                Nearest
+                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Nearest
               </span>
             )}
             {id === 1 && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                <Wifi className="w-3 h-3 text-emerald-600" />
-                IoT Live
+                <Wifi className="w-3 h-3 text-emerald-600" /> IoT Live
               </span>
             )}
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
@@ -64,7 +56,6 @@ export default function ParkingCardSkeleton({
           </p>
         </div>
         
-        {/* Live Slot Counter Card */}
         <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg border ${availabilityColor} shadow-sm shrink-0 min-w-[70px]`}>
           <span className="text-xl font-black leading-none">{available}</span>
           <span className="text-[10px] font-extrabold uppercase tracking-wider mt-1 opacity-90">/ {total} left</span>
@@ -84,29 +75,20 @@ export default function ParkingCardSkeleton({
         </div>
       )}
 
-      {/* Action Buttons */}
       <div className="mt-3 flex items-center gap-2">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenSlotsInspector && onOpenSlotsInspector(id);
-          }}
+          onClick={(e) => { e.stopPropagation(); onOpenSlotsInspector && onOpenSlotsInspector(id); }}
           className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-semibold text-xs transition-colors"
         >
-          <LayoutGrid className="w-3.5 h-3.5" />
-          Slots ({available})
+          <LayoutGrid className="w-3.5 h-3.5" /> Slots ({available})
         </button>
 
-        <a
-          href={googleMapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+        <button
+          onClick={(e) => { e.stopPropagation(); onNavigate && onNavigate(parking); }}
           className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-semibold text-xs transition-colors shadow-sm"
         >
-          <Navigation className="w-3.5 h-3.5" />
-          Navigate
-        </a>
+          <Navigation className="w-3.5 h-3.5" /> Navigate
+        </button>
       </div>
     </div>
   );

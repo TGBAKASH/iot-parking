@@ -2,21 +2,23 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import DashboardSkeleton from './components/DashboardSkeleton';
 import MapView from './components/MapView';
+import NavigationView from './components/NavigationView';
 import AuthModal from './components/AuthModal';
 import SlotDetailsModal from './components/SlotDetailsModal';
 import AddParkingModal from './components/AddParkingModal';
 import AnalyticsModal from './components/AnalyticsModal';
 import SecretAdminPanel from './components/SecretAdminPanel';
 import { parkingService, authService } from './services/api';
-import { fetchDrivingDistanceAndDuration, searchCityGeocode, fetchIPLocation, reverseGeocode } from './services/routingService';
+import { fetchDrivingDistanceAndDuration, searchCityGeocode, reverseGeocode } from './services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from './services/socket';
-import { Zap, Search, Compass } from 'lucide-react';
+import { Zap, Compass } from 'lucide-react';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [parkings, setParkings] = useState([]);
   const [selectedParking, setSelectedParking] = useState(null);
+  const [navigatingParking, setNavigatingParking] = useState(null);
   const [searchCity, setSearchCity] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +55,6 @@ export default function App() {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-          // If browser GPS returns somewhere far from Trichy (>100km), use Trichy instead
           const distFromTrichy = Math.hypot(loc.lat - TRICHY.lat, loc.lng - TRICHY.lng) * 111;
           const finalLoc = distFromTrichy > 100 ? TRICHY : loc;
           setUserLocation(finalLoc);
@@ -62,7 +63,6 @@ export default function App() {
           if (cityInfo) setUserCityInfo(cityInfo);
         },
         async () => {
-          // GPS failed, use Trichy directly
           setUserLocation(TRICHY);
           const cityInfo = await reverseGeocode(TRICHY.lat, TRICHY.lng);
           if (cityInfo) setUserCityInfo(cityInfo);
@@ -140,10 +140,7 @@ export default function App() {
         })
       );
 
-      if (isMounted) { 
-        setParkings(updated); 
-        setNearestParkingId(closestId); 
-      }
+      if (isMounted) { setParkings(updated); setNearestParkingId(closestId); }
     };
 
     calculate();
@@ -168,6 +165,17 @@ export default function App() {
       console.error('ESP32 simulation failed:', err);
     }
   };
+
+  // ========== FULLSCREEN NAVIGATION VIEW ==========
+  if (navigatingParking) {
+    return (
+      <NavigationView
+        parking={navigatingParking}
+        userLocation={userLocation}
+        onGoBack={() => setNavigatingParking(null)}
+      />
+    );
+  }
 
   // Secret Admin Panel Route
   if (currentPath === '/sec-admin-panel') {
@@ -231,6 +239,7 @@ export default function App() {
               parkings={filtered}
               selectedParking={selectedParking}
               onSelectParking={(p) => setSelectedParking(p)}
+              onNavigate={(p) => setNavigatingParking(p)}
               searchCity={searchCity}
               setSearchCity={setSearchCity}
               onSearchCitySubmit={handleSearchCitySubmit}
@@ -247,6 +256,7 @@ export default function App() {
               parkings={filtered}
               selectedParking={selectedParking}
               onSelectParking={(p) => setSelectedParking(p)}
+              onNavigate={(p) => setNavigatingParking(p)}
               userLocation={userLocation}
               onRequestUserLocation={requestUserLocation}
             />

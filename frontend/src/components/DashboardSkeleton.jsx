@@ -6,6 +6,7 @@ export default function DashboardSkeleton({
   parkings,
   selectedParking,
   onSelectParking,
+  onNavigate,
   searchCity,
   setSearchCity,
   onSearchCitySubmit,
@@ -24,9 +25,7 @@ export default function DashboardSkeleton({
     
     sorted.sort((a, b) => {
       if (sortBy === 'Nearest') {
-        const distA = a.rawDistanceMeters || Infinity;
-        const distB = b.rawDistanceMeters || Infinity;
-        return distA - distB;
+        return (a.rawDistanceMeters || Infinity) - (b.rawDistanceMeters || Infinity);
       } else if (sortBy === 'Most Available') {
         return (b.available_slots || 0) - (a.available_slots || 0);
       } else if (sortBy === 'Lowest Occupancy') {
@@ -57,20 +56,13 @@ export default function DashboardSkeleton({
         </form>
         
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onRequestUserLocation}
-            className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors shadow-sm flex-shrink-0"
-            title="Use my location"
-          >
+          <button type="button" onClick={onRequestUserLocation}
+            className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors shadow-sm flex-shrink-0" title="Use my location">
             <Compass className="w-4 h-4" />
           </button>
           
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="py-2 pl-3 pr-8 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-700 text-xs font-semibold"
-          >
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+            className="py-2 pl-3 pr-8 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-700 text-xs font-semibold">
             <option value="Nearest">Nearest</option>
             <option value="Most Available">Most Available</option>
             <option value="Lowest Occupancy">Lowest Occupancy</option>
@@ -95,6 +87,7 @@ export default function DashboardSkeleton({
               key={parking.id}
               parking={parking}
               onSelect={onSelectParking}
+              onNavigate={onNavigate}
               isSelected={selectedParking?.id === parking.id}
               onOpenSlotsInspector={onOpenSlotsInspector}
               onSimulateESP32={onSimulateESP32}
