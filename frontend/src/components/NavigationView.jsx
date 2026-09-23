@@ -1,12 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import '@maplibre/maplibre-gl-leaflet';
 import { parkingService } from '../services/api';
 import { fetchDrivingDistanceAndDuration } from '../services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from '../services/socket';
 import { ArrowLeft, Navigation, ExternalLink, MapPin, Clock, Wifi, Loader2 } from 'lucide-react';
+
+const TILE_PROVIDERS = [
+  { url: 'https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', options: { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19, subdomains: 'abc' } },
+  { url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', options: { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France', maxZoom: 20, subdomains: 'abc' } },
+  { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', options: { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19 } }
+];
+
+function addTileWithFallback(map) {
+  let idx = 0;
+  function tryProvider(i) {
+    if (i >= TILE_PROVIDERS.length) return;
+    const p = TILE_PROVIDERS[i];
+    const layer = L.tileLayer(p.url, p.options);
+    layer.on('tileerror', () => { if (idx === i) { idx = i + 1; map.removeLayer(layer); tryProvider(idx); } });
+    layer.addTo(map);
+  }
+  tryProvider(0);
+}
 
 export default function NavigationView({ parking: initialParking, userLocation, onGoBack }) {
   const mapContainerRef = useRef(null);
@@ -75,10 +91,7 @@ export default function NavigationView({ parking: initialParking, userLocation, 
       zoom: 11,
     });
 
-    L.maplibreGL({
-      style: 'https://tiles.openfreemap.org/styles/liberty',
-      attribution: '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>',
-    }).addTo(mapRef.current);
+    addTileWithFallback(mapRef.current);
 
     L.control.zoom({ position: 'bottomright' }).addTo(mapRef.current);
 

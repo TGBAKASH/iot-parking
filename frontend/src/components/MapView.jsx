@@ -1,9 +1,45 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import '@maplibre/maplibre-gl-leaflet';
 import { Compass, MapPin } from 'lucide-react';
+
+// Multiple tile providers as fallback
+const TILE_PROVIDERS = [
+  {
+    url: 'https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png',
+    options: { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19, subdomains: 'abc' }
+  },
+  {
+    url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    options: { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France', maxZoom: 20, subdomains: 'abc' }
+  },
+  {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19 }
+  }
+];
+
+function addTileWithFallback(map) {
+  let currentIndex = 0;
+
+  function tryProvider(index) {
+    if (index >= TILE_PROVIDERS.length) return;
+    const provider = TILE_PROVIDERS[index];
+    const layer = L.tileLayer(provider.url, provider.options);
+
+    layer.on('tileerror', () => {
+      if (currentIndex === index) {
+        currentIndex = index + 1;
+        map.removeLayer(layer);
+        tryProvider(currentIndex);
+      }
+    });
+
+    layer.addTo(map);
+  }
+
+  tryProvider(0);
+}
 
 export default function MapView({ parkings, selectedParking, onSelectParking, onNavigate, userLocation, onRequestUserLocation }) {
   const mapContainerRef = useRef(null);
@@ -24,10 +60,7 @@ export default function MapView({ parkings, selectedParking, onSelectParking, on
       zoom: 9,
     });
 
-    L.maplibreGL({
-      style: 'https://tiles.openfreemap.org/styles/liberty',
-      attribution: '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>',
-    }).addTo(mapRef.current);
+    addTileWithFallback(mapRef.current);
 
     L.control.zoom({ position: 'topright' }).addTo(mapRef.current);
     markersGroupRef.current = L.layerGroup().addTo(mapRef.current);
