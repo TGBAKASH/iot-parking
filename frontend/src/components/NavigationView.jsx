@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '@maplibre/maplibre-gl-leaflet';
 import { parkingService } from '../services/api';
 import { fetchDrivingDistanceAndDuration } from '../services/routingService';
 import { socket, subscribeToSlotUpdates, unsubscribeFromSlotUpdates } from '../services/socket';
@@ -73,10 +75,9 @@ export default function NavigationView({ parking: initialParking, userLocation, 
       zoom: 11,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
+    L.maplibreGL({
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      attribution: '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>',
     }).addTo(mapRef.current);
 
     L.control.zoom({ position: 'bottomright' }).addTo(mapRef.current);
